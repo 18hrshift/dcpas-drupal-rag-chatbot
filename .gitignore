@@ -1,0 +1,35 @@
+# Environment and secrets
+.env
+*.env
+config.local.php
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node
+node_modules/
+npm-debug.log
+
+# Drupal
+sites/default/settings.local.php
+sites/default/files/
+vendor/
+
+# Data / embeddings
+data/
+embeddings/
+*.sqlite
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
