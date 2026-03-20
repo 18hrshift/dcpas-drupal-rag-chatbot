@@ -2,10 +2,12 @@
 
 namespace Drupal\dcpas_chatbot\Plugin\Block;
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Block\BlockPluginInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\Session\CsrfTokenGenerator;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -24,6 +26,7 @@ class ChatbotBlock extends BlockBase implements BlockPluginInterface, ContainerF
     string $plugin_id,
     mixed $plugin_definition,
     protected readonly ConfigFactoryInterface $configFactory,
+    protected readonly CsrfTokenGenerator $csrfTokenGenerator,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -37,6 +40,7 @@ class ChatbotBlock extends BlockBase implements BlockPluginInterface, ContainerF
       $plugin_id,
       $plugin_definition,
       $container->get('config.factory'),
+      $container->get('csrf_token'),
     );
   }
 
@@ -50,19 +54,24 @@ class ChatbotBlock extends BlockBase implements BlockPluginInterface, ContainerF
       return [];
     }
 
-    // Generate a CSRF token for the chat endpoint.
-    $csrfToken = \Drupal::csrfToken()->get('dcpas_chatbot_chat');
+    // CSRF token injected per-session for the chat endpoint.
+    $csrfToken = $this->csrfTokenGenerator->get('dcpas_chatbot_chat');
+
+    // Escape admin-editable strings before passing to the theme layer as
+    // a defence-in-depth measure (Twig auto-escapes, but belt + suspenders).
+    $title       = Html::escape($config->get('chatbot_title') ?: 'DCPAS Assistant');
+    $placeholder = Html::escape($config->get('placeholder_text') ?: 'Ask a question...');
 
     return [
-      '#theme'    => 'dcpas_chatbot_block',
-      '#title'    => $config->get('chatbot_title') ?: 'DCPAS Assistant',
-      '#placeholder' => $config->get('placeholder_text') ?: 'Ask a question...',
-      '#attached' => [
-        'library'       => ['dcpas_chatbot/chatbot'],
+      '#theme'       => 'dcpas_chatbot_block',
+      '#title'       => $title,
+      '#placeholder' => $placeholder,
+      '#attached'    => [
+        'library'        => ['dcpas_chatbot/chatbot'],
         'drupalSettings' => [
           'dcpasChatbot' => [
-            'endpoint'   => '/api/dcpas-chatbot/chat',
-            'csrfToken'  => $csrfToken,
+            'endpoint'  => '/api/dcpas-chatbot/chat',
+            'csrfToken' => $csrfToken,
           ],
         ],
       ],

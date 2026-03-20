@@ -5,9 +5,12 @@ namespace Drupal\dcpas_chatbot\Controller;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Flood\FloodInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Session\CsrfTokenGenerator;
 use Drupal\dcpas_chatbot\Service\AzureOpenAIClient;
 use Drupal\dcpas_chatbot\Service\PromptBuilder;
 use Drupal\dcpas_chatbot\Service\Retriever;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,19 +19,37 @@ use Symfony\Component\HttpFoundation\Request;
  * Handles AJAX chat requests from the chatbot block.
  *
  * POST /api/dcpas-chatbot/chat
- * Body: { "question": "...", "token": "<CSRF token>" }
- * Response: { "answer": "...", "citations": [...], "error": null }
+ * Body (JSON): { "question": "...", "token": "<session CSRF token>" }
+ * Response:    { "answer": "...", "citations": [...], "error": null }
  *
- * Security controls:
- *  - CSRF token validation (Drupal session token)
- *  - Flood control (rate limiting per IP)
- *  - Input length cap
- *  - No internal error details exposed to the client
+ * Request pipeline order (hardened):
+ *  1. Content-Type check
+ *  2. JSON decode validation
+ *  3. Permission check
+ *  4. CSRF validation
+ *  5. Flood / rate limit (registered only for valid, authed requests)
+ *  6. Input normalisation (strip_tags → length check)
+ *  7. Prompt injection guard
+ *  8. Retrieve → build prompt → call API
+ *  9. Audit log (hashed question, IP, user ID)
+ * 10. Sanitised JSON response
  */
 class ChatController extends ControllerBase {
 
-  /** Maximum allowed question length in characters. */
+  /** Maximum allowed question length in characters (after tag stripping). */
   const MAX_QUESTION_LENGTH = 500;
+
+  /**
+   * Structural markers that must be stripped from user input to prevent
+   * prompt injection attacks that corrupt the RAG prompt template.
+   */
+  const PROMPT_INJECTION_PATTERNS = [
+    '/\[Source\s+\d+\]/i',
+    '/^---+$/m',
+    '/^Question:/m',
+    '/^Use the following context/m',
+    '/ignore (all )?(previous|prior) instructions?/i',
+  ];
 
   public function __construct(
     protected readonly Retriever $retriever,
@@ -36,6 +57,9 @@ class ChatController extends ControllerBase {
     protected readonly PromptBuilder $promptBuilder,
     protected readonly FloodInterface $flood,
     protected readonly ConfigFactoryInterface $configFactory,
+    protected readonly CsrfTokenGenerator $csrfTokenGenerator,
+    protected readonly LoggerInterface $logger,
+    protected readonly AccountInterface $currentUser,
   ) {}
 
   /**
@@ -48,37 +72,46 @@ class ChatController extends ControllerBase {
       $container->get('dcpas_chatbot.prompt_builder'),
       $container->get('flood'),
       $container->get('config.factory'),
+      $container->get('csrf_token'),
+      $container->get('logger.factory')->get('dcpas_chatbot'),
+      $container->get('current_user'),
     );
   }
 
   /**
    * Handle a POST chat request.
-   *
-   * @param \Symfony\Component\HttpFoundation\Request $request
-   *
-   * @return \Symfony\Component\HttpFoundation\JsonResponse
    */
   public function chat(Request $request): JsonResponse {
     $config = $this->configFactory->get('dcpas_chatbot.settings');
 
-    // --- Guard: chatbot disabled ---
-    if (!$config->get('enabled')) {
+    // --- Guard: chatbot disabled or not configured ---
+    if (!$config->get('enabled') || empty($config->get('openai_api_key'))) {
       return $this->errorResponse('The chatbot is currently unavailable.', 503);
     }
 
-    // --- Guard: API key not configured ---
-    if (empty($config->get('openai_api_key'))) {
-      return $this->errorResponse('The chatbot is not configured yet.', 503);
+    // --- Guard: Content-Type must be JSON ---
+    if (!str_contains($request->headers->get('Content-Type', ''), 'application/json')) {
+      return $this->errorResponse('Invalid request.', 400);
+    }
+
+    // --- Decode JSON body ---
+    $body = json_decode($request->getContent(), TRUE);
+    if (!is_array($body)) {
+      return $this->errorResponse('Invalid request body.', 400);
+    }
+
+    // --- Permission check ---
+    if (!$this->currentUser->hasPermission('access dcpas chatbot')) {
+      return $this->errorResponse('Access denied.', 403);
     }
 
     // --- CSRF validation ---
-    $body = json_decode($request->getContent(), TRUE) ?? [];
     $token = $body['token'] ?? '';
-    if (!$this->csrfTokenValid($token)) {
+    if (empty($token) || !$this->csrfTokenGenerator->validate($token, 'dcpas_chatbot_chat')) {
       return $this->errorResponse('Invalid request token.', 403);
     }
 
-    // --- Rate limiting ---
+    // --- Flood / rate limiting ---
     $rateWindow = (int) ($config->get('rate_limit_window') ?? 60);
     $rateMax    = (int) ($config->get('rate_limit_max') ?? 10);
     $clientIp   = $request->getClientIp();
@@ -88,18 +121,25 @@ class ChatController extends ControllerBase {
     }
     $this->flood->register('dcpas_chatbot.chat', $rateWindow, $clientIp);
 
-    // --- Parse and validate question ---
-    $question = trim($body['question'] ?? '');
+    // --- Input normalisation: strip tags first, then enforce length ---
+    $question = strip_tags(trim($body['question'] ?? ''));
     if (empty($question)) {
       return $this->errorResponse('Please enter a question.', 400);
     }
     if (mb_strlen($question) > self::MAX_QUESTION_LENGTH) {
       return $this->errorResponse('Question is too long (max 500 characters).', 400);
     }
-    // Strip tags to prevent prompt injection via HTML
-    $question = strip_tags($question);
 
-    // --- Retrieve + generate ---
+    // --- Prompt injection guard: remove structural markers from user input ---
+    foreach (self::PROMPT_INJECTION_PATTERNS as $pattern) {
+      $question = preg_replace($pattern, '', $question);
+    }
+    $question = trim($question);
+    if (empty($question)) {
+      return $this->errorResponse('Please enter a valid question.', 400);
+    }
+
+    // --- Retrieve → build prompt → call API ---
     try {
       $chunks    = $this->retriever->retrieve($question);
       $system    = $this->promptBuilder->getSystemPrompt();
@@ -108,38 +148,42 @@ class ChatController extends ControllerBase {
       $citations = $this->promptBuilder->extractCitations($chunks);
     }
     catch (\RuntimeException $e) {
-      // Log internally, return generic message to client
-      \Drupal::logger('dcpas_chatbot')->error($e->getMessage());
-      return $this->errorResponse('An error occurred while processing your question. Please try again.', 500);
+      // Log the real error internally; never expose it to the client.
+      $this->logger->error('Chat request failed: @msg', ['@msg' => $e->getMessage()]);
+      return $this->errorResponse('An error occurred. Please try again.', 500);
     }
 
-    // Fallback message if retrieval returned nothing
+    // Fallback when retrieval found nothing relevant
     if (empty($chunks)) {
-      $answer = "I couldn't find relevant information in the DCPAS content to answer that question. Please try rephrasing, or visit dcpas.osd.mil directly.";
+      $answer    = 'I couldn\'t find relevant information to answer that question. Please try rephrasing, or visit dcpas.osd.mil directly.';
+      $citations = [];
     }
+
+    // --- Audit log: hash question for PII compliance, never log plaintext ---
+    $this->logger->info('Chat request processed. user=@uid ip=@ip q_hash=@qh chunks=@n', [
+      '@uid' => $this->currentUser->id(),
+      '@ip'  => $clientIp,
+      '@qh'  => hash('sha256', $question),
+      '@n'   => count($chunks),
+    ]);
+
+    // LLM answer is returned as plain text. The frontend MUST render it via
+    // textContent (never innerHTML) — enforced in chatbot.js. We strip any
+    // stray HTML tags here as a server-side defence-in-depth measure.
+    $safeAnswer = strip_tags($answer);
 
     return new JsonResponse([
-      'answer'    => $answer,
+      'answer'    => $safeAnswer,
       'citations' => $citations,
       'error'     => NULL,
     ]);
   }
 
   /**
-   * Build a standard error JSON response.
+   * Build a standard error response. Never exposes internal details.
    */
   protected function errorResponse(string $message, int $status = 400): JsonResponse {
     return new JsonResponse(['answer' => NULL, 'citations' => [], 'error' => $message], $status);
-  }
-
-  /**
-   * Validate the CSRF token from the request against the current session.
-   */
-  protected function csrfTokenValid(string $token): bool {
-    if (empty($token)) {
-      return FALSE;
-    }
-    return \Drupal::csrfToken()->validate($token, 'dcpas_chatbot_chat');
   }
 
 }
