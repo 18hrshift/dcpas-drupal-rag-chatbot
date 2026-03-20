@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the DCPAS Chatbot module.
+ *
+ * Creates the three custom tables used to store the RAG corpus:
+ *   dcpas_chatbot_chunks         — document chunks with metadata
+ *   dcpas_chatbot_embeddings     — float vectors (stored as JSON)
+ *   dcpas_chatbot_index_versions — crawl/index run history
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function dcpas_chatbot_schema(): array {
+  return [
+    'dcpas_chatbot_chunks' => [
+      'description' => 'RAG document chunks extracted from the indexed corpus.',
+      'fields' => [
+        'chunk_id'    => ['type' => 'varchar', 'length' => 64,  'not null' => TRUE, 'description' => 'Stable SHA-based chunk identifier.'],
+        'source_url'  => ['type' => 'text',    'size' => 'big', 'not null' => TRUE, 'description' => 'Source page or document URL.'],
+        'title'       => ['type' => 'varchar', 'length' => 500, 'not null' => FALSE, 'default' => '', 'description' => 'Page title.'],
+        'chunk_index' => ['type' => 'int',     'not null' => TRUE, 'default' => 0, 'description' => 'Position within source document.'],
+        'text'        => ['type' => 'text',    'size' => 'big', 'not null' => TRUE, 'description' => 'Chunk plain text.'],
+        'char_count'  => ['type' => 'int',     'not null' => FALSE, 'default' => 0],
+        'created_at'  => ['type' => 'varchar', 'length' => 32,  'not null' => FALSE, 'default' => ''],
+      ],
+      'primary key' => ['chunk_id'],
+      'indexes' => [
+        'source_url_prefix' => [['source_url', 191]],
+      ],
+    ],
+
+    'dcpas_chatbot_embeddings' => [
+      'description' => 'Embedding vectors for each chunk, stored as JSON arrays.',
+      'fields' => [
+        'chunk_id'    => ['type' => 'varchar', 'length' => 64,  'not null' => TRUE, 'description' => 'Foreign key to dcpas_chatbot_chunks.'],
+        'model'       => ['type' => 'varchar', 'length' => 100, 'not null' => FALSE, 'default' => ''],
+        'dimensions'  => ['type' => 'int',     'not null' => FALSE, 'default' => 0],
+        'vector_json' => ['type' => 'text',    'size' => 'big', 'not null' => TRUE, 'description' => 'Embedding vector as a JSON-encoded float array.'],
+        'embedded_at' => ['type' => 'varchar', 'length' => 32,  'not null' => FALSE, 'default' => ''],
+      ],
+      'primary key' => ['chunk_id'],
+    ],
+
+    'dcpas_chatbot_index_versions' => [
+      'description' => 'Audit log of corpus index runs.',
+      'fields' => [
+        'id'          => ['type' => 'serial', 'not null' => TRUE],
+        'version'     => ['type' => 'varchar', 'length' => 64,  'not null' => TRUE, 'description' => 'Version string (e.g. date-based).'],
+        'chunk_count' => ['type' => 'int',     'not null' => FALSE, 'default' => 0],
+        'indexed_at'  => ['type' => 'varchar', 'length' => 32,  'not null' => FALSE, 'default' => ''],
+        'notes'       => ['type' => 'varchar', 'length' => 500, 'not null' => FALSE, 'default' => ''],
+      ],
+      'primary key' => ['id'],
+    ],
+  ];
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function dcpas_chatbot_uninstall(): void {
+  \Drupal::configFactory()->getEditable('dcpas_chatbot.settings')->delete();
+}

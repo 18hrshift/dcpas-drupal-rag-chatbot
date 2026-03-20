@@ -1,0 +1,24 @@
+services:
+
+  dcpas_chatbot.azure_client:
+    class: Drupal\dcpas_chatbot\Service\AzureOpenAIClient
+    arguments:
+      - '@config.factory'
+      - '@http_client'
+
+  dcpas_chatbot.vector_store:
+    class: Drupal\dcpas_chatbot\Service\VectorStore
+    arguments:
+      - '@database'
+
+  dcpas_chatbot.retriever:
+    class: Drupal\dcpas_chatbot\Service\Retriever
+    arguments:
+      - '@dcpas_chatbot.vector_store'
+      - '@dcpas_chatbot.azure_client'
+      - '@config.factory'
+
+  dcpas_chatbot.prompt_builder:
+    class: Drupal\dcpas_chatbot\Service\PromptBuilder
+    arguments:
+      - '@config.factory'

@@ -1,0 +1,16 @@
+# Default settings — override via Admin > Config > DCPAS Chatbot Settings
+# Never store API keys here. Use the admin form (stored encrypted in Drupal config).
+
+enabled: true
+openai_api_key: ''
+openai_api_base: 'https://api.openai.com/v1'
+openai_api_version: ''
+embedding_model: 'text-embedding-3-small'
+chat_model: 'gpt-4o'
+top_k: 5
+max_response_tokens: 800
+system_prompt: "You are a helpful assistant for the Defense Civilian Personnel Advisory Service (DCPAS). Answer questions using only the provided context from the DCPAS website. If the answer is not in the provided context, say so clearly. Always cite your sources."
+rate_limit_window: 60
+rate_limit_max: 10
+chatbot_title: 'DCPAS Assistant'
+placeholder_text: 'Ask a question about DCPAS policies and programs...'

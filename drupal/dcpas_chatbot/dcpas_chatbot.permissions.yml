@@ -1,0 +1,8 @@
+access dcpas chatbot:
+  title: 'Use the DCPAS chatbot'
+  description: 'Allows users to submit questions to the chatbot.'
+
+administer dcpas chatbot:
+  title: 'Administer DCPAS chatbot settings'
+  description: 'Configure API keys, model settings, and chatbot behavior.'
+  restrict access: TRUE

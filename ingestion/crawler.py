@@ -15,6 +15,7 @@ Usage:
   pages, pdfs = crawl(config)
 """
 
+import hashlib
 import json
 import re
 import time
@@ -57,12 +58,17 @@ class _LinkExtractor(HTMLParser):
 
 
 def _safe_filename(url: str) -> str:
-    """Convert a URL to a safe filesystem name."""
+    """Convert a URL to a unique safe filesystem name.
+
+    Includes a hash suffix to prevent collisions between URLs that would
+    produce the same sanitised path string.
+    """
     parsed = urllib.parse.urlparse(url)
     path = parsed.path.strip("/").replace("/", "_") or "index"
-    # Remove or replace unsafe characters
     path = re.sub(r"[^\w\-.]", "_", path)
-    return path[:100]
+    # Short hash ensures uniqueness even when paths collide
+    url_hash = hashlib.sha1(url.encode()).hexdigest()[:8]
+    return f"{path[:60]}_{url_hash}"
 
 
 def _is_pdf(url: str, content_type: str) -> bool:
@@ -127,6 +133,13 @@ def crawl(config: dict, resume: bool = True) -> tuple[list[str], list[str]]:
         print(f"Loaded robots.txt from {robots_url}")
     except Exception as e:
         print(f"Could not load robots.txt: {e} — proceeding without restrictions")
+
+    # Validate that the target URL is HTTPS and on an expected government domain
+    if not target_url.startswith("https://"):
+        raise ValueError(f"TARGET_URL must use HTTPS. Got: {target_url}")
+    if not parsed_base.netloc.endswith(".mil") and not parsed_base.netloc.endswith(".gov"):
+        import sys
+        print(f"WARNING: target domain '{parsed_base.netloc}' is not a .mil or .gov domain. Proceeding anyway.", file=sys.stderr)
 
     # BFS crawl
     queue: list[str] = [target_url]

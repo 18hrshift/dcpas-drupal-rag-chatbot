@@ -1,0 +1,10 @@
+chatbot:
+  version: '1.0.0'
+  css:
+    theme:
+      css/chatbot.css: {}
+  js:
+    js/chatbot.js: { attributes: { defer: true } }
+  dependencies:
+    - core/drupalSettings
+    - core/once

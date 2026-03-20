@@ -1,0 +1,10 @@
+name: 'DCPAS Chatbot'
+type: module
+description: 'RAG-based chatbot for DCPAS content using Azure OpenAI. Retrieves answers from indexed site content with source citations.'
+core_version_requirement: ^10
+package: Custom
+version: '1.0.0'
+
+dependencies:
+  - drupal:block
+  - drupal:system

@@ -1,0 +1,43 @@
+dcpas_chatbot.settings:
+  type: config_object
+  label: 'DCPAS Chatbot settings'
+  mapping:
+    enabled:
+      type: boolean
+      label: 'Chatbot enabled'
+    openai_api_key:
+      type: string
+      label: 'OpenAI / Azure OpenAI API key'
+    openai_api_base:
+      type: string
+      label: 'API base URL'
+    openai_api_version:
+      type: string
+      label: 'Azure API version (leave blank for standard OpenAI)'
+    embedding_model:
+      type: string
+      label: 'Embedding model or deployment name'
+    chat_model:
+      type: string
+      label: 'Chat model or deployment name'
+    top_k:
+      type: integer
+      label: 'Number of retrieved chunks (top-K)'
+    max_response_tokens:
+      type: integer
+      label: 'Maximum response tokens'
+    system_prompt:
+      type: string
+      label: 'System prompt'
+    rate_limit_window:
+      type: integer
+      label: 'Rate limit window (seconds)'
+    rate_limit_max:
+      type: integer
+      label: 'Max requests per window per user'
+    chatbot_title:
+      type: string
+      label: 'Chatbot widget title'
+    placeholder_text:
+      type: string
+      label: 'Input placeholder text'

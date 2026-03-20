@@ -1,0 +1,18 @@
+dcpas_chatbot.chat:
+  path: '/api/dcpas-chatbot/chat'
+  defaults:
+    _controller: '\Drupal\dcpas_chatbot\Controller\ChatController::chat'
+    _title: 'Chat'
+  requirements:
+    _permission: 'access dcpas chatbot'
+  methods: [POST]
+  options:
+    no_cache: TRUE
+
+dcpas_chatbot.settings:
+  path: '/admin/config/dcpas-chatbot/settings'
+  defaults:
+    _form: '\Drupal\dcpas_chatbot\Form\SettingsForm'
+    _title: 'DCPAS Chatbot Settings'
+  requirements:
+    _permission: 'administer dcpas chatbot'

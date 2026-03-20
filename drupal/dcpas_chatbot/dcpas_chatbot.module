@@ -1,0 +1,18 @@
+<?php
+
+/**
+ * @file
+ * DCPAS Chatbot module hooks.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+
+/**
+ * Implements hook_help().
+ */
+function dcpas_chatbot_help(string $route_name, RouteMatchInterface $route_match): string {
+  if ($route_name === 'help.page.dcpas_chatbot') {
+    return '<p>' . t('RAG-based chatbot powered by Azure OpenAI. Place the <em>DCPAS Chatbot</em> block on any page. Configure at <a href=":settings">Admin &rsaquo; Config &rsaquo; DCPAS Chatbot Settings</a>.', [':settings' => '/admin/config/dcpas-chatbot/settings']) . '</p>';
+  }
+  return '';
+}

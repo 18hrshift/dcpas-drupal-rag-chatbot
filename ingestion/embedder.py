@@ -43,7 +43,12 @@ def embed_chunks(chunks: list[dict], config: dict) -> list[dict]:
 
     for batch_start in range(0, total, _BATCH_SIZE):
         batch = chunks[batch_start: batch_start + _BATCH_SIZE]
-        texts = [c["text"] for c in batch]
+        # Truncate each chunk text; skip any that are somehow empty
+        texts = [c["text"][:8000] for c in batch if c.get("text", "").strip()]
+        if not texts:
+            for chunk in batch:
+                chunk["embedding"] = None
+            continue
 
         try:
             vectors = _call_embeddings_api(texts, config)
@@ -68,15 +73,20 @@ def embed_query(text: str, config: dict) -> list[float]:
     """Generate a single embedding vector for a query string.
 
     Args:
-        text:   the query text to embed
+        text:   the query text to embed (max 8000 chars to stay within token limits)
         config: pipeline config dict
 
     Returns:
         Embedding vector as list of floats.
 
     Raises:
+        ValueError if text is empty.
         RuntimeError on API failure.
     """
+    if not text or not text.strip():
+        raise ValueError("Cannot embed empty text.")
+    # Truncate to avoid exceeding token limits (~8000 chars ≈ 2000 tokens)
+    text = text[:8000]
     vectors = _call_embeddings_api([text], config)
     return vectors[0]
 

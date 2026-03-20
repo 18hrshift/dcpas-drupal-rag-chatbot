@@ -1,0 +1,46 @@
+{#
+  Template: dcpas-chatbot-block.html.twig
+  Renders the DCPAS chatbot widget.
+
+  Variables:
+    title       — string, widget heading text
+    placeholder — string, input field placeholder
+#}
+
+<div class="dcpas-chatbot" id="dcpas-chatbot" aria-label="{{ title|e }}">
+
+  <div class="dcpas-chatbot__header">
+    <span class="dcpas-chatbot__icon" aria-hidden="true">💬</span>
+    <h2 class="dcpas-chatbot__title">{{ title }}</h2>
+  </div>
+
+  <div class="dcpas-chatbot__messages" id="dcpas-chatbot-messages" role="log" aria-live="polite" aria-label="Chat messages">
+    <div class="dcpas-chatbot__message dcpas-chatbot__message--assistant" data-initial="1">
+      <p>Hello! I can answer questions about DCPAS policies, programs, and pay information. What would you like to know?</p>
+    </div>
+  </div>
+
+  <form class="dcpas-chatbot__form" id="dcpas-chatbot-form" autocomplete="off" novalidate>
+    <label for="dcpas-chatbot-input" class="visually-hidden">{{ 'Your question'|t }}</label>
+    <div class="dcpas-chatbot__input-row">
+      <textarea
+        id="dcpas-chatbot-input"
+        class="dcpas-chatbot__input"
+        rows="2"
+        maxlength="500"
+        placeholder="{{ placeholder }}"
+        aria-required="true"
+        aria-label="{{ 'Enter your question'|t }}"
+      ></textarea>
+      <button type="submit" class="dcpas-chatbot__submit" aria-label="{{ 'Send'|t }}">
+        {{ 'Send'|t }}
+      </button>
+    </div>
+    <p class="dcpas-chatbot__char-count" aria-live="polite" id="dcpas-chatbot-charcount"></p>
+  </form>
+
+  <p class="dcpas-chatbot__disclaimer">
+    {{ 'Answers are generated from DCPAS website content. Always verify important information at dcpas.osd.mil.'|t }}
+  </p>
+
+</div>
