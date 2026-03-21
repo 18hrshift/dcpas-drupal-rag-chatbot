@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# hooks/pre-commit — Secrets leak scanner
+#
+# Scans staged files for patterns that look like API keys, tokens, or other
+# secrets before allowing a commit. Install via: make install-hooks
+#
+# Patterns checked:
+#   - OpenAI API keys (sk-...)
+#   - Azure API key assignments in .env or config files
+#   - Generic high-entropy key assignments (KEY=... VALUE=... TOKEN=...)
+#
+# Exits non-zero if any match is found, blocking the commit.
+
+set -euo pipefail
+
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Files staged for this commit
+STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+FOUND=0
+
+check_pattern() {
+  local label="$1"
+  local pattern="$2"
+  local matches
+  matches=$(echo "$STAGED" | xargs git show HEAD:"$1" 2>/dev/null | grep -P "$pattern" || true)
+  # Use git diff --cached instead (correct approach):
+  matches=$(git diff --cached -- $STAGED | grep "^+" | grep -P "$pattern" || true)
+  if [ -n "$matches" ]; then
+    echo -e "${RED}[SECRETS-HOOK] Possible secret detected: ${label}${NC}"
+    echo "$matches" | head -5
+    FOUND=1
+  fi
+}
+
+# Scan staged diff lines (lines being added, i.e. starting with '+')
+STAGED_DIFF=$(git diff --cached -- $STAGED 2>/dev/null | grep "^+" | grep -v "^+++" || true)
+
+# OpenAI API key pattern
+if echo "$STAGED_DIFF" | grep -qP 'sk-[a-zA-Z0-9]{20,}'; then
+  echo -e "${RED}[SECRETS-HOOK] Possible OpenAI API key (sk-...) detected in staged changes.${NC}"
+  echo "$STAGED_DIFF" | grep -P 'sk-[a-zA-Z0-9]{20,}' | head -3
+  FOUND=1
+fi
+
+# Azure API key pattern (long alphanumeric string assigned to key-like variable)
+if echo "$STAGED_DIFF" | grep -qiP '(api.?key|api.?secret|access.?key)\s*[=:]\s*["\x27]?[a-zA-Z0-9+/]{32,}'; then
+  echo -e "${RED}[SECRETS-HOOK] Possible API key/secret assignment detected in staged changes.${NC}"
+  echo "$STAGED_DIFF" | grep -iP '(api.?key|api.?secret|access.?key)\s*[=:]\s*["\x27]?[a-zA-Z0-9+/]{32,}' | head -3
+  FOUND=1
+fi
+
+# Generic token/password pattern (high-entropy values)
+if echo "$STAGED_DIFF" | grep -qiP '(password|token|secret)\s*[=:]\s*["\x27][a-zA-Z0-9!@#$%^&*]{16,}'; then
+  echo -e "${YELLOW}[SECRETS-HOOK] Possible password/token value detected in staged changes.${NC}"
+  echo "$STAGED_DIFF" | grep -iP '(password|token|secret)\s*[=:]\s*["\x27][a-zA-Z0-9!@#$%^&*]{16,}' | head -3
+  FOUND=1
+fi
+
+# .env file being committed (always block — .env is in .gitignore for a reason)
+if echo "$STAGED" | grep -qE '(^|/)\.env$'; then
+  echo -e "${RED}[SECRETS-HOOK] .env file is staged. This file should never be committed.${NC}"
+  echo "Remove it: git reset HEAD .env"
+  FOUND=1
+fi
+
+if [ "$FOUND" -eq 1 ]; then
+  echo ""
+  echo -e "${RED}Commit blocked. Remove secrets before committing.${NC}"
+  echo "To bypass (only if you are certain this is a false positive):"
+  echo "  git commit --no-verify"
+  exit 1
+fi
+
+exit 0

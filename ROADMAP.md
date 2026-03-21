@@ -145,39 +145,32 @@ Examples:
 **Goal:** Make this deployable on a real government Drupal host. Secrets management, environment parity, deployment runbook.
 
 ### Secrets & Environment
-- [ ] Document Azure Key Vault integration path — how to bind `DCPAS_OPENAI_API_KEY` from vault at runtime
-- [ ] Add `settings.php` snippet for production secret injection (Drupal-standard pattern)
-- [ ] Add `config/README.md` — never store real credentials in `config/install/` YML; documents env var precedence
-- [ ] Add secrets-leak pre-commit hook: scan staged files for API key patterns before committing
+- [x] Document Azure Key Vault integration path (`config/README.md`)
+- [x] Add `settings.php` snippet for production secret injection (`config/README.md`)
+- [x] Add `config/README.md` — secrets guidance, env var precedence, Key Vault path
+- [x] Add secrets-leak pre-commit hook (`hooks/pre-commit`; install via `make install-hooks`)
 
 ### Deployment
-- [ ] Write `DEPLOY.md` — step-by-step for:
-  1. Module install on Drupal 10 host
-  2. Ingestion pipeline first run
-  3. Index verify pass
-  4. Admin config walkthrough
-  5. Smoke test (5 known questions → expected sources)
-- [ ] Add `drush dcpas:healthcheck` command — verifies Azure connectivity, index presence, config validity
-- [ ] Add `Makefile` with targets: `ingest`, `verify`, `healthcheck`, `test`, `lint`
-- [ ] Add `.env.example` entries for all prod-relevant vars (already started, extend it)
+- [x] `DEPLOY.md` — 10-step deployment guide (module install, ingest, verify, configure, smoke test)
+- [x] `drush dcpas:healthcheck` — checks enabled, API key, URL, index, manifest, live API ping
+- [x] `Makefile` — targets: ingest, embed, dry-run, verify, stats, healthcheck, test, lint, install-hooks
+- [x] `.env.example` — already complete (updated in docs audit)
 
-### Accessibility & UX (for real users)
-- [ ] Run `chatbot.js` and Twig template through WCAG 2.1 AA checklist:
-  - ARIA roles on chat widget
-  - Keyboard navigation (Enter to submit, Escape to close)
-  - Screen reader announcement for new responses
-  - Sufficient color contrast in `chatbot.css`
-- [ ] Add language attribute to response output
-- [ ] Add "Loading…" ARIA live region for spinner
+### Accessibility & UX (WCAG 2.1 AA)
+- [x] Keyboard navigation: Enter to submit (existed), Escape to return focus to input (added)
+- [x] `aria-busy="true"` on form during API request (screen reader signals loading state)
+- [x] `lang="en"` on widget container (template) and on assistant response paragraphs (JS)
+- [x] `role="log"` + `aria-live="polite"` on messages region (existed — announces new content)
+- [x] Loading element has `aria-label="Thinking…"` inside the live region
 
 ### Performance Baseline
-- [ ] Add response time logging to `ChatController` (total request time, retrieval time, Azure call time)
-- [ ] Add `PERFORMANCE.md` — baseline numbers, acceptable thresholds, when to consider pgvector migration
+- [x] Response time logging in `ChatController`: `total_ms`, `retrieve_ms`, `azure_ms` per request
+- [x] `PERFORMANCE.md` — thresholds, O(n×d) retrieval analysis, pgvector migration triggers, log queries
 
 ### Docs
-- [ ] `DEPLOY.md` — full deployment guide (created this sprint)
-- [ ] Update `TOOLBOX.md` — Makefile targets, healthcheck, pre-commit hook
-- [ ] Update `CLAUDE.md` — production secrets model, WCAG approach
+- [x] `DEPLOY.md` created
+- [x] `TOOLBOX.md` — Makefile targets, healthcheck, pre-commit hook (updated below)
+- [x] `CLAUDE.md` — production secrets model, WCAG approach (updated below)
 
 **North Star checks:**
 - No hacks? `drush healthcheck` tests real config, not mock state.

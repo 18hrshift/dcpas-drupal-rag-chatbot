@@ -1,7 +1,7 @@
 # TOOLBOX.md — DCPAS RAG Chatbot Operations Reference
 
 > Command reference for developers and operators. Updated every sprint.
-> Last updated: Sprint 5.
+> Last updated: Sprint 6.
 
 ---
 
@@ -98,6 +98,58 @@ phpcs --standard=Drupal --extensions=php,module,install,yml drupal/dcpas_chatbot
 # Requires: eslint
 eslint drupal/dcpas_chatbot/js/chatbot.js
 ```
+
+---
+
+## Makefile Targets
+
+```bash
+make ingest        # Full pipeline: crawl + embed
+make embed         # Embed only (skip crawl)
+make dry-run       # Simulate embed — no writes
+make verify        # Corpus hash integrity check
+make stats         # Index statistics
+make healthcheck   # drush dcpas:healthcheck
+make test          # Python test suite
+make lint          # phpcs + eslint
+make install-hooks # Install pre-commit secrets hook
+```
+
+---
+
+## Drush Healthcheck
+
+```bash
+drush dcpas:healthcheck
+# Checks: enabled, API key, API base URL, index populated,
+#         manifest readable, live API connectivity ping
+```
+
+Exit code 0 = all checks passed. Non-zero = fix required.
+
+---
+
+## Secrets & Pre-commit Hook
+
+Install the secrets-leak pre-commit hook (scans staged files for API key patterns):
+```bash
+make install-hooks
+# Installs hooks/pre-commit → .git/hooks/pre-commit
+```
+
+See `drupal/dcpas_chatbot/config/README.md` for the full secrets management guide
+(Azure Key Vault, settings.php injection, env var precedence).
+
+---
+
+## Performance Logging
+
+Chat requests log timing to the `dcpas_chatbot` channel at `info` level:
+```
+Chat processed. uid=1 ip=x q_hash=abc chunks=5 total_ms=1842 retrieve_ms=340 azure_ms=1480
+```
+
+See `PERFORMANCE.md` for thresholds and how to read the logs.
 
 ---
 

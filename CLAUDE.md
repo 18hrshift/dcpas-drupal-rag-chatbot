@@ -1,7 +1,7 @@
 # CLAUDE.md — DCPAS RAG Chatbot Architecture Reference
 
 > This file documents architectural decisions, design rationale, and component
-> boundaries for this project. Updated every sprint. Last updated: Sprint 5.
+> boundaries for this project. Updated every sprint. Last updated: Sprint 6.
 
 ## Engineering North Star
 
@@ -181,5 +181,57 @@ All runtime config lives in Drupal config `dcpas_chatbot.settings`:
 | `max_chunks` | `10000` | Max corpus chunks loaded into PHP memory |
 | `manifest_path` | `''` | Filesystem path to `index-manifest.json` for admin display |
 
-**Never commit real credentials.** Use environment variables or Drupal's
-`settings.php` secret injection. See Sprint 6 for full secrets management plan.
+**Never commit real credentials.** See `drupal/dcpas_chatbot/config/README.md` for
+the full secrets management guide (Azure Key Vault, settings.php injection, env var precedence).
+
+---
+
+## Production Secrets Model (Sprint 6)
+
+### Precedence (highest to lowest)
+1. `DCPAS_OPENAI_API_KEY` environment variable — never touches the database
+2. `settings.php` `$config` override — in non-committed local settings file
+3. Drupal config `openai_api_key` — for demo/dev only; blank in production
+
+### FedRAMP path
+1. API key stored in Azure Key Vault
+2. App Service identity granted `Key Vault Secrets User` role
+3. Key Vault reference mapped to `DCPAS_OPENAI_API_KEY` env var
+4. Module picks it up via `getenv('DCPAS_OPENAI_API_KEY')`
+
+Never chain the exception from the Guzzle HTTP client — it may contain Azure tenant
+IDs or resource names. `AzureOpenAIClient::request()` wraps all exceptions before
+re-throwing. This is intentional.
+
+---
+
+## WCAG 2.1 AA Compliance (Sprint 6)
+
+### What is implemented
+| WCAG criterion | Implementation |
+|----------------|---------------|
+| 1.3.1 Info and Relationships | Semantic HTML: `<form>`, `<label>`, `<button>`, heading hierarchy |
+| 1.4.4 Resize Text | CSS uses relative units; no fixed pixel font sizes |
+| 2.1.1 Keyboard | All controls keyboard-accessible; Enter to submit; Escape returns focus to input |
+| 2.4.3 Focus Order | DOM order matches visual order; focus stays within widget |
+| 3.1.1 Language of Page | `lang="en"` on widget container |
+| 3.1.2 Language of Parts | `lang="en"` on assistant response `<p>` elements |
+| 4.1.2 Name, Role, Value | ARIA: `role="log"`, `aria-live="polite"`, `aria-label`, `aria-required`, `aria-busy` |
+| 4.1.3 Status Messages | `aria-busy="true"` on form while awaiting response; messages region uses `role="log"` |
+
+### What is NOT formally tested
+- Color contrast ratios (`chatbot.css`) — admin should run through a contrast checker
+- Screen reader testing with NVDA/JAWS — recommended before production launch
+- Mobile/touch interaction — not formally audited
+
+---
+
+## Performance Logging (Sprint 6)
+
+`ChatController::chat()` records three timings per successful request:
+- `retrieve_ms` — embedding + cosine similarity scan
+- `azure_ms` — Azure/OpenAI HTTP roundtrip
+- `total_ms` — wall clock from request entry to response
+
+Logged at `info` level to `dcpas_chatbot` channel. Never includes question text.
+See `PERFORMANCE.md` for thresholds and migration triggers.

@@ -174,12 +174,20 @@ class ChatController extends ControllerBase {
       return $this->errorResponse('Please enter a valid question.', 400);
     }
 
-    // --- Retrieve → build prompt → call API ---
+    // --- Retrieve → build prompt → call API (with performance timing) ---
+    $t0 = microtime(TRUE);
     try {
-      $chunks    = $this->retriever->retrieve($question);
-      $system    = $this->promptBuilder->getSystemPrompt();
-      $userMsg   = $this->promptBuilder->buildUserMessage($question, $chunks);
-      $answer    = $this->openAIClient->complete($system, $userMsg);
+      $tRetrieveStart = microtime(TRUE);
+      $chunks         = $this->retriever->retrieve($question);
+      $retrieveMs     = (int) ((microtime(TRUE) - $tRetrieveStart) * 1000);
+
+      $system  = $this->promptBuilder->getSystemPrompt();
+      $userMsg = $this->promptBuilder->buildUserMessage($question, $chunks);
+
+      $tAzureStart = microtime(TRUE);
+      $answer      = $this->openAIClient->complete($system, $userMsg);
+      $azureMs     = (int) ((microtime(TRUE) - $tAzureStart) * 1000);
+
       $citations = $this->promptBuilder->extractCitations($chunks);
     }
     catch (\RuntimeException $e) {
@@ -191,6 +199,7 @@ class ChatController extends ControllerBase {
       ]);
       return $this->errorResponse('An error occurred. Please try again.', 500);
     }
+    $totalMs = (int) ((microtime(TRUE) - $t0) * 1000);
 
     // Fallback when retrieval found nothing relevant
     if (empty($chunks)) {
@@ -199,12 +208,20 @@ class ChatController extends ControllerBase {
     }
 
     // --- Audit log: hash question for PII compliance, never log plaintext ---
-    $this->logger->info('Chat request processed. user=@uid ip=@ip q_hash=@qh chunks=@n', [
-      '@uid' => $this->currentUser->id(),
-      '@ip'  => $clientIp,
-      '@qh'  => hash('sha256', $question),
-      '@n'   => count($chunks),
-    ]);
+    // Performance timings are recorded here for baseline tracking (Sprint 6).
+    // See PERFORMANCE.md for acceptable thresholds and pgvector migration triggers.
+    $this->logger->info(
+      'Chat processed. uid=@uid ip=@ip q_hash=@qh chunks=@n total_ms=@t retrieve_ms=@r azure_ms=@a',
+      [
+        '@uid' => $this->currentUser->id(),
+        '@ip'  => $clientIp,
+        '@qh'  => hash('sha256', $question),
+        '@n'   => count($chunks),
+        '@t'   => $totalMs,
+        '@r'   => $retrieveMs,
+        '@a'   => $azureMs,
+      ]
+    );
 
     // LLM answer is returned as plain text. The frontend MUST render it via
     // textContent (never innerHTML) — enforced in chatbot.js. We strip any
