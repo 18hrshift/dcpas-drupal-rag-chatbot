@@ -77,10 +77,11 @@ def export(db_path: str, out_path: str, table_prefix: str = '') -> None:
             for row in chunks:
                 f.write(
                     f"INSERT INTO `{chunks_table}` "
-                    f"(chunk_id, source_url, title, chunk_index, text, char_count, created_at) VALUES "
+                    f"(chunk_id, source_url, title, chunk_index, text, char_count, text_hash, created_at) VALUES "
                     f"({_escape(row['chunk_id'])}, {_escape(row['source_url'])}, "
                     f"{_escape(row['title'])}, {row['chunk_index']}, "
                     f"{_escape(row['text'])}, {row['char_count'] or 0}, "
+                    f"{_escape(row['text_hash'] or '')}, "
                     f"{_escape(row['created_at'])});\n"
                 )
             f.write("\n")

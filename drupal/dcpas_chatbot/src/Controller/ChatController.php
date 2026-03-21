@@ -151,8 +151,10 @@ class ChatController extends ControllerBase {
     // --- Input normalisation: strip tags first, then enforce length ---
     // Normalize Unicode homoglyphs (e.g. Cyrillic 'а' → Latin 'a') before
     // pattern matching so injection phrases using lookalike characters are
-    // caught by the blocklist. Requires PHP intl extension (iconv fallback
-    // used if unavailable, which strips non-ASCII entirely).
+    // caught by the blocklist. Requires PHP intl extension. If intl is not
+    // installed, normalization is skipped — the blocklist still runs, but
+    // homoglyph variants of injection phrases will not be caught. Install
+    // the intl extension in production.
     $rawQuestion = strip_tags(trim($body['question'] ?? ''));
     if (function_exists('normalizer_normalize')) {
       $rawQuestion = normalizer_normalize($rawQuestion, \Normalizer::FORM_KC) ?: $rawQuestion;
