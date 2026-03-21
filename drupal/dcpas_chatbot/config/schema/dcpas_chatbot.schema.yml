@@ -50,3 +50,9 @@ dcpas_chatbot.settings:
     placeholder_text:
       type: string
       label: 'Input placeholder text'
+    max_chunks:
+      type: integer
+      label: 'Max corpus chunks loaded into PHP memory (memory safety cap)'
+    manifest_path:
+      type: string
+      label: 'Filesystem path to index-manifest.json (ingestion pipeline output)'

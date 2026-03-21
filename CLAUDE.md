@@ -162,17 +162,24 @@ All runtime config lives in Drupal config `dcpas_chatbot.settings`:
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `enabled` | false | Global chatbot on/off switch |
-| `openai_api_key` | — | Azure OpenAI API key |
-| `openai_endpoint` | — | Azure OpenAI endpoint URL |
-| `openai_deployment` | — | GPT-4 deployment name |
-| `openai_embedding_deployment` | — | Embedding model deployment name |
-| `openai_api_version` | — | Azure API version string |
-| `top_k` | 5 | Chunks retrieved per query |
-| `rate_limit_window` | 60 | Flood window (seconds) |
-| `rate_limit_max` | 10 | Max requests per window |
-| `max_chunks` | 10000 | Max corpus chunks loaded into PHP memory |
-| `manifest_path` | — | Filesystem path to `index-manifest.json` for admin display |
+| `enabled` | `true` | Global chatbot on/off switch |
+| `provider` | `openai` | API provider: `openai` or `azure` |
+| `openai_api_key` | `''` | API key (prefer `DCPAS_OPENAI_API_KEY` env var in production) |
+| `openai_api_base` | `https://api.openai.com/v1` | API base URL; set to Azure endpoint for FedRAMP |
+| `openai_api_version` | `''` | Azure API version (e.g. `2024-02-01`); blank for standard OpenAI |
+| `embedding_model` | `text-embedding-3-small` | Embedding model or Azure deployment name |
+| `chat_model` | `gpt-4o` | Chat model or Azure deployment name |
+| `top_k` | `5` | Chunks retrieved per query |
+| `min_score` | `0.70` | Minimum cosine similarity threshold |
+| `max_response_tokens` | `800` | Max tokens in LLM response |
+| `api_timeout` | `15` | Seconds before API call times out |
+| `system_prompt` | *(see install YML)* | Instructions prepended to every chat request |
+| `rate_limit_window` | `60` | Flood window (seconds) |
+| `rate_limit_max` | `10` | Max requests per window per IP |
+| `chatbot_title` | `DCPAS Assistant` | Widget heading |
+| `placeholder_text` | *(see install YML)* | Input field placeholder |
+| `max_chunks` | `10000` | Max corpus chunks loaded into PHP memory |
+| `manifest_path` | `''` | Filesystem path to `index-manifest.json` for admin display |
 
 **Never commit real credentials.** Use environment variables or Drupal's
 `settings.php` secret injection. See Sprint 6 for full secrets management plan.

@@ -24,6 +24,7 @@ function dcpas_chatbot_schema(): array {
         'chunk_index' => ['type' => 'int',     'not null' => TRUE, 'default' => 0, 'description' => 'Position within source document.'],
         'text'        => ['type' => 'text',    'size' => 'big', 'not null' => TRUE, 'description' => 'Chunk plain text.'],
         'char_count'  => ['type' => 'int',     'not null' => FALSE, 'default' => 0],
+        'text_hash'   => ['type' => 'varchar', 'length' => 64,  'not null' => FALSE, 'default' => '', 'description' => 'SHA-256 of chunk text for corpus integrity verification.'],
         'created_at'  => ['type' => 'varchar', 'length' => 32,  'not null' => FALSE, 'default' => ''],
       ],
       'primary key' => ['chunk_id'],
@@ -63,4 +64,20 @@ function dcpas_chatbot_schema(): array {
  */
 function dcpas_chatbot_uninstall(): void {
   \Drupal::configFactory()->getEditable('dcpas_chatbot.settings')->delete();
+}
+
+/**
+ * Add text_hash column to dcpas_chatbot_chunks for corpus integrity (Sprint 5).
+ */
+function dcpas_chatbot_update_9501(): void {
+  $schema = \Drupal::database()->schema();
+  if (!$schema->fieldExists('dcpas_chatbot_chunks', 'text_hash')) {
+    $schema->addField('dcpas_chatbot_chunks', 'text_hash', [
+      'type'        => 'varchar',
+      'length'      => 64,
+      'not null'    => FALSE,
+      'default'     => '',
+      'description' => 'SHA-256 of chunk text for corpus integrity verification.',
+    ]);
+  }
 }

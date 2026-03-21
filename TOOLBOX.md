@@ -10,8 +10,9 @@
 ### Prerequisites
 ```bash
 cp .env.example .env
-# Edit .env — set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY,
-#              AZURE_OPENAI_EMBEDDING_DEPLOYMENT
+# For standard OpenAI (demo): set OPENAI_API_KEY, EMBEDDING_MODEL, CHAT_MODEL
+# For Azure OpenAI (FedRAMP production): set OPENAI_API_BASE (Azure endpoint),
+#   OPENAI_API_VERSION, EMBEDDING_DEPLOYMENT, CHAT_DEPLOYMENT, OPENAI_API_KEY
 ```
 
 ### Run full pipeline
@@ -151,12 +152,20 @@ Workflow file: `.github/workflows/ci.yml`
 
 ## Environment Variables
 
-See `.env.example` for all supported variables. Key ones:
+See `.env.example` for all supported variables. The pipeline uses standard names for both providers:
 
-| Variable | Purpose |
-|----------|---------|
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI resource endpoint |
-| `AZURE_OPENAI_API_KEY` | API key for Azure OpenAI |
-| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Embedding model deployment name |
-| `AZURE_OPENAI_CHAT_DEPLOYMENT` | GPT-4 deployment name |
-| `AZURE_OPENAI_API_VERSION` | API version (e.g. `2024-02-01`) |
+| Variable | Used for | Example |
+|----------|----------|---------|
+| `OPENAI_API_KEY` | Both | `sk-...` (standard) or Azure key |
+| `OPENAI_API_BASE` | Azure only | `https://{resource}.openai.azure.com/openai` |
+| `OPENAI_API_VERSION` | Azure only | `2024-02-01` |
+| `EMBEDDING_MODEL` | Standard OpenAI | `text-embedding-3-small` |
+| `CHAT_MODEL` | Standard OpenAI | `gpt-4o` |
+| `EMBEDDING_DEPLOYMENT` | Azure only | your deployment name |
+| `CHAT_DEPLOYMENT` | Azure only | your deployment name |
+| `TARGET_URL` | Crawler | `https://dcpas.osd.mil` |
+| `MAX_PAGES` | Crawler | `500` |
+| `CRAWL_DELAY` | Crawler | `1.5` |
+| `DB_PATH` | Storage | `data/index.sqlite` |
+
+Azure mode activates automatically when `OPENAI_API_VERSION` is set or `OPENAI_API_BASE` contains `azure.com`.
