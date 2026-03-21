@@ -17,6 +17,7 @@ Usage:
   vs.stats()                    # print counts
 """
 
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -50,6 +51,7 @@ class VectorStore:
                 chunk_index INTEGER,
                 text        TEXT,
                 char_count  INTEGER,
+                text_hash   TEXT,
                 created_at  TEXT
             );
 
@@ -76,7 +78,11 @@ class VectorStore:
         self._conn.commit()
 
     def upsert_chunks(self, chunks: list[dict]) -> None:
-        """Insert or replace chunk records (without embedding vectors)."""
+        """Insert or replace chunk records (without embedding vectors).
+
+        Computes and stores a SHA-256 hash of each chunk's text at write time.
+        Used by verify_hashes() to detect corpus tampering after indexing.
+        """
         now = datetime.now(timezone.utc).isoformat()
         rows = [
             (
@@ -86,14 +92,15 @@ class VectorStore:
                 c.get("chunk_index", 0),
                 c["text"],
                 len(c["text"]),
+                hashlib.sha256(c["text"].encode()).hexdigest(),
                 now,
             )
             for c in chunks
         ]
         self._conn.executemany(
             """INSERT OR REPLACE INTO chunks
-               (chunk_id, source_url, title, chunk_index, text, char_count, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               (chunk_id, source_url, title, chunk_index, text, char_count, text_hash, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             rows,
         )
         self._conn.commit()
@@ -164,6 +171,43 @@ class VectorStore:
         chunks = self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         embedded = self._conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
         return {"pages": pages, "chunks": chunks, "embedded": embedded}
+
+    def corpus_hash(self) -> str:
+        """Return a stable SHA-256 fingerprint of the full chunk corpus.
+
+        Computed as SHA-256 over all chunk_ids sorted lexicographically and
+        joined with newlines. Stable across re-runs as long as the chunk set
+        is unchanged. Written to the index manifest after each ingest run.
+        """
+        cursor = self._conn.execute("SELECT chunk_id FROM chunks ORDER BY chunk_id ASC")
+        all_ids = "\n".join(row[0] for row in cursor)
+        return hashlib.sha256(all_ids.encode()).hexdigest()
+
+    def verify_hashes(self) -> dict:
+        """Re-derive SHA-256 for every chunk text and compare to stored hash.
+
+        Returns:
+            {
+                "total": int,       # total chunks checked
+                "ok": int,          # chunks whose hash matched
+                "mismatch": int,    # chunks with hash mismatch (possible tampering)
+                "missing_hash": int # chunks that were indexed before text_hash was added
+            }
+        """
+        cursor = self._conn.execute("SELECT chunk_id, text, text_hash FROM chunks")
+        total = ok = mismatch = missing = 0
+        for row in cursor:
+            total += 1
+            stored_hash = row[2]
+            if not stored_hash:
+                missing += 1
+                continue
+            computed = hashlib.sha256(row[1].encode()).hexdigest()
+            if computed == stored_hash:
+                ok += 1
+            else:
+                mismatch += 1
+        return {"total": total, "ok": ok, "mismatch": mismatch, "missing_hash": missing}
 
     def close(self) -> None:
         """Close the database connection."""

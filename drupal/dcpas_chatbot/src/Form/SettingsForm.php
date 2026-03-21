@@ -57,9 +57,10 @@ class SettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    $config  = $this->config('dcpas_chatbot.settings');
-    $stats   = $this->vectorStore->getStats();
-    $version = $this->vectorStore->getLatestIndexVersion();
+    $config   = $this->config('dcpas_chatbot.settings');
+    $stats    = $this->vectorStore->getStats();
+    $version  = $this->vectorStore->getLatestIndexVersion();
+    $manifest = $this->vectorStore->getManifest();
 
     $envKeySet = !empty(getenv('DCPAS_OPENAI_API_KEY'));
 
@@ -75,6 +76,27 @@ class SettingsForm extends ConfigFormBase {
         ['@chunks' => $stats['chunks'], '@emb' => $stats['embedded'], '@ver' => $version]
       ),
     ];
+
+    if ($manifest !== NULL) {
+      $poisoned = (int) ($manifest['skipped_poisoned'] ?? 0);
+      $poisonedText = $poisoned > 0
+        ? '<strong style="color:red"> ⚠ ' . $poisoned . ' skipped (injection pattern)</strong>'
+        : ' (none skipped)';
+      $form['status']['manifest'] = [
+        '#markup' => $this->t(
+          '<p><strong>Last ingest run:</strong> @run &nbsp; '
+          . '<strong>Total chunks:</strong> @total &nbsp; '
+          . '<strong>Skipped/poisoned:</strong>@poisoned</p>'
+          . '<p><strong>Corpus hash:</strong> <code>@hash</code></p>',
+          [
+            '@run'      => $manifest['run_at'] ?? 'unknown',
+            '@total'    => $manifest['total_chunks'] ?? '?',
+            '@poisoned' => $poisonedText,
+            '@hash'     => $manifest['corpus_hash'] ?? 'unknown',
+          ]
+        ),
+      ];
+    }
 
     // --- Global on/off ---
     $form['enabled'] = [
@@ -185,6 +207,29 @@ class SettingsForm extends ConfigFormBase {
       '#min'           => 100,
       '#max'           => 4000,
     ];
+    $form['retrieval']['max_chunks'] = [
+      '#type'          => 'number',
+      '#title'         => $this->t('Max corpus chunks to load'),
+      '#description'   => $this->t(
+        'Maximum chunks loaded into PHP memory for cosine similarity search. '
+        . 'Lower values reduce memory usage. Recommended: 10 000 for production, 50 000 for dev. '
+        . 'Hard ceiling is 50 000 regardless of this value. See CLAUDE.md § Memory Safety.'
+      ),
+      '#default_value' => $config->get('max_chunks') ?? 10000,
+      '#min'           => 100,
+      '#max'           => 50000,
+    ];
+    $form['retrieval']['manifest_path'] = [
+      '#type'          => 'textfield',
+      '#title'         => $this->t('Index manifest path (filesystem)'),
+      '#description'   => $this->t(
+        'Absolute path to the <code>index-manifest.json</code> file written by the ingestion pipeline. '
+        . 'Used to display corpus hash and skipped-chunk counts on this page. '
+        . 'Example: <code>/var/www/dcpas-rag/data/index-manifest.json</code>. '
+        . 'Leave blank to hide the manifest section.'
+      ),
+      '#default_value' => $config->get('manifest_path') ?? '',
+    ];
 
     // --- Rate limiting ---
     $form['rate'] = [
@@ -266,6 +311,8 @@ class SettingsForm extends ConfigFormBase {
       ->set('top_k', (int) $form_state->getValue('top_k'))
       ->set('min_score', (float) $form_state->getValue('min_score'))
       ->set('max_response_tokens', (int) $form_state->getValue('max_response_tokens'))
+      ->set('max_chunks', (int) $form_state->getValue('max_chunks'))
+      ->set('manifest_path', trim($form_state->getValue('manifest_path')))
       ->set('api_timeout', (int) $form_state->getValue('api_timeout'))
       ->set('rate_limit_window', (int) $form_state->getValue('rate_limit_window'))
       ->set('rate_limit_max', (int) $form_state->getValue('rate_limit_max'))

@@ -1,7 +1,7 @@
 # TOOLBOX.md — DCPAS RAG Chatbot Operations Reference
 
 > Command reference for developers and operators. Updated every sprint.
-> Last updated: Sprint 4.
+> Last updated: Sprint 5.
 
 ---
 
@@ -32,6 +32,26 @@ python3 store.py          # Write chunks + vectors to data/chatbot.db (SQLite)
 ### Verify retrieval
 ```bash
 python3 retrieve.py "What is DCPAS?" --top-k 5
+```
+
+### Dry run (simulate embed without writing)
+```bash
+python3 ingestion/run_pipeline.py --dry-run --embed
+# Runs extract → chunk → injection scan, reports what would be indexed.
+# No writes to the store or manifest.
+```
+
+### Verify corpus integrity
+```bash
+python3 ingestion/run_pipeline.py --verify
+# Re-derives SHA-256 for every chunk, compares to stored text_hash.
+# Reports mismatches and displays the latest index manifest.
+```
+
+### Read the manifest
+```bash
+cat data/index-manifest.json
+# Fields: run_at, total_chunks, embedded_chunks, skipped_poisoned, corpus_hash
 ```
 
 ---
