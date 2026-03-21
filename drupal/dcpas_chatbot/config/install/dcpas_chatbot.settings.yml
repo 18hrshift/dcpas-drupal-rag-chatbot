@@ -18,3 +18,5 @@ rate_limit_window: 60
 rate_limit_max: 10
 chatbot_title: 'DCPAS Assistant'
 placeholder_text: 'Ask a question about DCPAS policies and programs...'
+max_chunks: 10000
+manifest_path: ''

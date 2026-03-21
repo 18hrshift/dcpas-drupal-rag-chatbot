@@ -99,6 +99,59 @@ class TestVectorStore(unittest.TestCase):
         self.vs.upsert_chunks(chunks)
         self.assertEqual(self.vs.stats()['chunks'], 5)
 
+    # --- Sprint 5: corpus integrity ---
+
+    def test_text_hash_stored(self):
+        """upsert_chunks should store SHA-256 of chunk text."""
+        import hashlib
+        chunk = self._make_chunk(text='Verify me.')
+        self.vs.upsert_chunks([chunk])
+        row = self.vs._conn.execute(
+            "SELECT text_hash FROM chunks WHERE chunk_id = ?", (chunk['chunk_id'],)
+        ).fetchone()
+        self.assertIsNotNone(row)
+        expected = hashlib.sha256('Verify me.'.encode()).hexdigest()
+        self.assertEqual(row[0], expected)
+
+    def test_verify_hashes_all_ok(self):
+        chunks = [self._make_chunk(f'h_{i}', text=f'Clean text {i}') for i in range(3)]
+        self.vs.upsert_chunks(chunks)
+        result = self.vs.verify_hashes()
+        self.assertEqual(result['total'], 3)
+        self.assertEqual(result['ok'], 3)
+        self.assertEqual(result['mismatch'], 0)
+        self.assertEqual(result['missing_hash'], 0)
+
+    def test_verify_hashes_detects_mismatch(self):
+        chunk = self._make_chunk(text='Original text.')
+        self.vs.upsert_chunks([chunk])
+        # Manually corrupt the stored hash
+        self.vs._conn.execute(
+            "UPDATE chunks SET text_hash = ? WHERE chunk_id = ?",
+            ('badhash', chunk['chunk_id'])
+        )
+        self.vs._conn.commit()
+        result = self.vs.verify_hashes()
+        self.assertEqual(result['mismatch'], 1)
+        self.assertEqual(result['ok'], 0)
+
+    def test_corpus_hash_stable(self):
+        chunks = [self._make_chunk(f'stable_{i}', text=f'Text {i}') for i in range(3)]
+        self.vs.upsert_chunks(chunks)
+        h1 = self.vs.corpus_hash()
+        h2 = self.vs.corpus_hash()
+        self.assertEqual(h1, h2)
+        self.assertIsInstance(h1, str)
+        self.assertEqual(len(h1), 64)  # SHA-256 hex
+
+    def test_corpus_hash_changes_with_new_chunk(self):
+        chunk = self._make_chunk('initial', text='Hello')
+        self.vs.upsert_chunks([chunk])
+        h1 = self.vs.corpus_hash()
+        self.vs.upsert_chunks([self._make_chunk('added', text='World')])
+        h2 = self.vs.corpus_hash()
+        self.assertNotEqual(h1, h2)
+
 
 if __name__ == '__main__':
     unittest.main()

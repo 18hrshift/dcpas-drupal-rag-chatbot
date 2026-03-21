@@ -107,24 +107,24 @@ Assumptions made to make this plan concrete:
 - **docs shipped?** Yes — all three docs updated.  
 - **single-responsibility?** Yes — citations, rate limiting, streaming/polling, and evaluation should be implemented as separate concerns, not folded into one monolithic service.
 
-## Open Questions
-1. **Where will the vector store live at runtime?**  
-   Is the SQLite index stored on the same host/filesystem as Drupal, or does Drupal need a separate retrieval API/service boundary?
+## Design Decisions (Resolved)
 
-2. **What content should be crawled?**  
-   Only public HTML pages on dcpas.osd.mil, or also PDFs, attachments, and document library content?
+1. **Vector store location:** SQLite co-located with Drupal on the same host. PHP module reads directly from MySQL (exported via `export_mysql.py`). For production scale, migrate to pgvector (Sprint 8).
 
-3. **What crawl boundaries are allowed?**  
-   Should the crawler follow only same-domain links, exclude news/archived pages, or prioritize specific sections?
+2. **Content crawled:** Public HTML pages + PDFs from `TARGET_URL` (default: dcpas.osd.mil). Both supported in `run_pipeline.py`.
 
-4. **How should authentication/secrets be managed in production?**  
-   Environment variables, Drupal config, Azure-managed secret store, or another FedRAMP-approved mechanism?
+3. **Crawl boundaries:** Same-domain links only, configurable via `TARGET_URL` and `MAX_PAGES` env vars. Respects robots.txt via `crawler.py`.
 
-5. **Which Azure OpenAI models/deployments are approved?**  
-   Exact embedding deployment and GPT-4 deployment names, API versions, token limits, and regional constraints need confirmation.
+4. **Secrets management (demo):** Environment variables via `.env` (ingestion) and `DCPAS_OPENAI_API_KEY` env var (Drupal). Full Azure Key Vault + `settings.php` injection path planned in Sprint 6.
 
-6. **What is the acceptable response latency for the demo?**  
-   This affects top-K retrieval size, chunk size, and whether streaming is worth implementing in the MVP.
+5. **Model names:** Parameterized — `embedding_model` and `chat_model` config keys. Default: `text-embedding-3-small` + `gpt-4o`. For Azure: set to deployment names.
 
-7. **What level of citation fidelity is required?**  
-   Per-answer
+6. **Response latency:** Not formally measured yet. Sprint 6 adds response time logging. Top-K default of 5 is acceptable for demo.
+
+7. **Citation fidelity:** Per-chunk source URL and title. Duplicate sources deduplicated in `PromptBuilder::extractCitations()`. Streaming not implemented in MVP (Sprint 3 deferred it).
+
+## Open Questions (Still Unresolved)
+
+- **Azure deployment names for production:** Exact deployment names and API version for the target Azure tenant need confirmation from the client before Sprint 6 cutover.
+- **Acceptable latency SLA:** No formal requirement stated yet. Needed before performance baseline sprint.
+- **Drupal 10 vs 11:** Module currently targets Drupal 10 only. Drupal 11 compatibility TBD.

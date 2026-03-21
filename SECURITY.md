@@ -24,7 +24,7 @@
 
 #### Corpus Poisoning
 - **Risk:** Attacker poisons the crawled site content to inject malicious instructions into retrieved chunks.
-- **Controls:** Source URL scheme validation (only `http`/`https`), citation URL guard (client-side `startsWith('https://')` check). Sprint 5 adds chunk-level injection scanning at ingest time.
+- **Controls:** `corpus_guard.py` scans every chunk for injection patterns before writing to the index (same pattern list as `ChatController`). Source URL scheme validation (only `http`/`https`). Client-side citation URL guard (`startsWith('https://')`). SHA-256 chunk hashes stored at ingest time; `--verify` flag detects post-write tampering.
 
 #### XSS via Response
 - **Risk:** Azure LLM returns content containing HTML/JS that is rendered unsafely.
