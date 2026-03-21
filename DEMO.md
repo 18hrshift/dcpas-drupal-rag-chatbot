@@ -11,12 +11,14 @@
 |------|-------|
 | Server | dvapp21 |
 | Drupal root | `/var/www/html/dcpas-dev/web` |
-| Drush | `/var/www/html/dcpas-dev/vendor/bin/drush --root=/var/www/html/dcpas-dev/web` |
+| Drush | `vendor/bin/drush --root=/var/www/html/dcpas-dev/web` |
 | PHP | 8.1.34 |
 | PHP intl | NOT installed (normalization skipped — see note below) |
 | DB | MySQL — `44063_DCPAS-DEV2` |
+| Drupal table prefix | none (empty string) |
+| Module machine name | `dcpas_chatbot` |
+| Module install path | `web/modules/custom/dcpas_chatbot/` |
 | Private files | `/var/www/html/shared/dcpas-dev-private` |
-| Modules path | `web/modules/` (no `custom/` subdirectory) |
 | Provider for demo | Standard OpenAI |
 
 ---
@@ -27,8 +29,15 @@ The PHP `intl` extension is not installed on dvapp21. This means:
 
 - **Unicode homoglyph normalization is skipped** — Cyrillic/Greek lookalike
   characters in user input will not be caught by the injection filter.
-- Everything else works normally.
+- The standard ASCII injection blocklist still runs normally.
 - For production (FedRAMP), install `php-intl` before go-live.
+
+---
+
+## Known Limitation: Drupal DB User is Read-Only
+
+The Drupal app database user has `'readonly' => TRUE` in settings.php. That user
+**cannot** run the SQL import. Use a writable MySQL admin/root user for Step 5.
 
 ---
 
@@ -39,7 +48,7 @@ cd /home/openclawjb/projects/drupal-rag-chatbot
 
 # Configure API key
 cp .env.example .env
-# Edit .env — set OPENAI_API_KEY to your standard OpenAI key
+# Edit .env:
 #   OPENAI_API_KEY=sk-...
 #   EMBEDDING_MODEL=text-embedding-3-small
 #   CHAT_MODEL=gpt-4o
@@ -47,28 +56,21 @@ cp .env.example .env
 #   MAX_PAGES=500
 
 # Run the full pipeline
-cd ingestion/
-python3 run_pipeline.py
+python3 ingestion/run_pipeline.py
 
-# Verify the index
-python3 run_pipeline.py --verify
+# Verify integrity
+python3 ingestion/run_pipeline.py --verify
 ```
 
 ---
 
 ## Step 2 — Export SQLite Index to MySQL SQL Dump (on the OpenClaw VM)
 
+No table prefix needed (confirmed empty).
+
 ```bash
 cd /home/openclawjb/projects/drupal-rag-chatbot
-
-# Check if Drupal uses a table prefix — run on dvapp21:
-#   grep 'prefix' /var/www/html/dcpas-dev/web/sites/default/settings.php
-# If 'prefix' => '' or prefix is empty, use no --table-prefix argument.
-# If 'prefix' => 'drupal_', use: --table-prefix drupal_
-
-python3 ingestion/export_mysql.py \
-  --out data/export.sql
-  # --table-prefix drupal_    ← add if needed
+python3 ingestion/export_mysql.py --out data/export.sql
 ```
 
 ---
@@ -76,41 +78,65 @@ python3 ingestion/export_mysql.py \
 ## Step 3 — Copy Module and SQL Dump to dvapp21
 
 ```bash
+# Create the custom modules directory if it doesn't exist
+ssh dvapp21 "mkdir -p /var/www/html/dcpas-dev/web/modules/custom"
+
 # Copy the Drupal module
-scp -r drupal/dcpas_chatbot/ dvapp21:/var/www/html/dcpas-dev/web/modules/
+scp -r drupal/dcpas_chatbot/ dvapp21:/var/www/html/dcpas-dev/web/modules/custom/
 
 # Copy the SQL dump
 scp data/export.sql dvapp21:/tmp/dcpas_export.sql
 
 # Copy the index manifest (for admin UI display)
-scp data/index-manifest.json dvapp21:/var/www/html/shared/dcpas-dev-private/dcpas-index-manifest.json
+scp data/index-manifest.json \
+  dvapp21:/var/www/html/shared/dcpas-dev-private/dcpas-index-manifest.json
 ```
 
 ---
 
-## Step 4 — Enable the Module on dvapp21
+## Step 4 — Import the Corpus into MySQL on dvapp21
+
+The Drupal app user is read-only. Use a writable MySQL user (root or admin):
 
 ```bash
-/var/www/html/dcpas-dev/vendor/bin/drush \
-  --root=/var/www/html/dcpas-dev/web \
-  en dcpas_chatbot -y
+# On dvapp21 — use a writable MySQL user, NOT the Drupal app user
+mysql -h localhost -u root -p 44063_DCPAS-DEV2 < /tmp/dcpas_export.sql
 ```
 
 ---
 
-## Step 5 — Import the Corpus into MySQL on dvapp21
+## Step 5 — Inject the API Key via settings.php
+
+Keep the API key out of the Drupal database. Add to
+`/var/www/html/dcpas-dev/web/sites/default/settings.php`:
+
+```php
+// DCPAS Chatbot — API key injection (demo: standard OpenAI)
+$config['dcpas_chatbot.settings']['openai_api_key'] = 'sk-...';
+```
+
+Or set an environment variable (survives config exports):
 
 ```bash
-# Get MySQL credentials from settings.php
-grep -A5 "'default'" /var/www/html/dcpas-dev/web/sites/default/settings.php | grep -E "host|user|pass|dbname"
+# In php-fpm service override or /etc/environment:
+DCPAS_OPENAI_API_KEY=sk-...
+```
 
-# Import
-mysql -h HOST -u USER -p 44063_DCPAS-DEV2 < /tmp/dcpas_export.sql
+The env var takes precedence over settings.php which takes precedence over
+the Drupal admin UI field.
+
+---
+
+## Step 6 — Enable the Module on dvapp21
+
+```bash
+cd /var/www/html/dcpas-dev
+vendor/bin/drush --root=/var/www/html/dcpas-dev/web en dcpas_chatbot -y
 ```
 
 ---
 
-## Step 6 — Configure the Module
+## Step 7 — Configure the Module
 
 Go to: `/admin/config/dcpas-chatbot/settings`
 
@@ -118,62 +144,44 @@ Go to: `/admin/config/dcpas-chatbot/settings`
 |-------|---------------|
 | Enable chatbot | ✓ checked |
 | Provider | Standard OpenAI |
-| API Key | Your `sk-...` key (or set `DCPAS_OPENAI_API_KEY` env var on dvapp21) |
+| API Key | Leave blank (set via settings.php above) |
 | API Base URL | `https://api.openai.com/v1` |
 | Azure API Version | *(leave blank)* |
 | Embedding model | `text-embedding-3-small` |
 | Chat model | `gpt-4o` |
-| Vector store backend | `sqlite` (default — uses MySQL, not literal SQLite) |
+| Vector store backend | `sqlite` (default) |
 | Index manifest path | `/var/www/html/shared/dcpas-dev-private/dcpas-index-manifest.json` |
 
-> **Setting the API key via environment variable (recommended):**
-> Add to `/etc/environment` or the php-fpm service file on dvapp21:
-> ```
-> DCPAS_OPENAI_API_KEY=sk-...
-> ```
-> Then restart php-fpm. The env var takes precedence over the Drupal config field.
-
 ---
 
-## Step 7 — Run Health Check
+## Step 8 — Run Health Check
 
 ```bash
-/var/www/html/dcpas-dev/vendor/bin/drush \
-  --root=/var/www/html/dcpas-dev/web \
-  dcpas:healthcheck
+cd /var/www/html/dcpas-dev
+vendor/bin/drush --root=/var/www/html/dcpas-dev/web dcpas:healthcheck
 ```
 
-Expected output: all checks passed, index populated, API connectivity OK.
+Expected: all checks passed, index populated, API connectivity OK.
+
+If "API base URL not HTTPS" — the API base URL field may be blank; set it to
+`https://api.openai.com/v1` in admin settings.
 
 ---
 
-## Step 8 — Place the Block
+## Step 9 — Place the Block
 
 1. Go to `/admin/structure/block`
-2. Click **Place block** in the region where the chatbot should appear
+2. Click **Place block** in the desired region
 3. Search for **DCPAS Chatbot**
 4. Save
 
 ---
 
-## Step 9 — Smoke Test
+## Step 10 — Smoke Test
 
 Visit a page where the block is placed. Ask: *"What is DCPAS?"*
 
-Expect: a response with a citation link to `dcpas.osd.mil`.
-
----
-
-## Drupal Table Prefix Check
-
-If the import fails with "table not found" errors, check the Drupal prefix:
-
-```bash
-grep -A 20 "databases\['default'\]" \
-  /var/www/html/dcpas-dev/web/sites/default/settings.php | grep prefix
-```
-
-Re-run the export with the correct `--table-prefix` if needed.
+Expected: a response with a citation link to `dcpas.osd.mil`.
 
 ---
 
@@ -181,12 +189,31 @@ Re-run the export with the correct `--table-prefix` if needed.
 
 ```bash
 # On the OpenClaw VM:
-python3 ingestion/run_pipeline.py    # re-crawl and re-embed
+python3 ingestion/run_pipeline.py
 python3 ingestion/export_mysql.py --out data/export.sql
+scp data/export.sql dvapp21:/tmp/dcpas_export.sql
 
-# On dvapp21:
-mysql -h HOST -u USER -p 44063_DCPAS-DEV2 < /tmp/dcpas_export.sql
+# On dvapp21 — writable MySQL user:
+mysql -h localhost -u root -p 44063_DCPAS-DEV2 < /tmp/dcpas_export.sql
 
-# Clear Drupal cache (clears the vector store's query cache if any):
-/var/www/html/dcpas-dev/vendor/bin/drush --root=/var/www/html/dcpas-dev/web cr
+# Clear Drupal cache:
+cd /var/www/html/dcpas-dev
+vendor/bin/drush --root=/var/www/html/dcpas-dev/web cr
 ```
+
+---
+
+## Switching to Azure OpenAI (production)
+
+When Azure credentials are ready, update admin settings:
+
+| Field | Value |
+|-------|-------|
+| Provider | Azure OpenAI |
+| API Base URL | `https://{resource}.openai.azure.com/openai` |
+| Azure API Version | `2024-02-01` |
+| Embedding model | your embedding deployment name |
+| Chat model | your GPT-4 deployment name |
+| API Key | via `DCPAS_OPENAI_API_KEY` env var or settings.php |
+
+No code changes required.
