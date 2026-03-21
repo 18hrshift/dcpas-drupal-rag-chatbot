@@ -201,10 +201,19 @@ class ChatController extends ControllerBase {
     }
     $totalMs = (int) ((microtime(TRUE) - $t0) * 1000);
 
-    // Fallback when retrieval found nothing relevant
+    // Fallback when retrieval found nothing relevant (low-confidence path)
     if (empty($chunks)) {
       $answer    = 'I couldn\'t find relevant information to answer that question. Please try rephrasing, or visit dcpas.osd.mil directly.';
       $citations = [];
+      // Log q_hash only — never log question plaintext (PII compliance).
+      $this->logger->warning(
+        'Low-confidence query: no chunks met min_score threshold. uid=@uid ip=@ip q_hash=@qh',
+        [
+          '@uid' => $this->currentUser->id(),
+          '@ip'  => $clientIp,
+          '@qh'  => hash('sha256', $question),
+        ]
+      );
     }
 
     // --- Audit log: hash question for PII compliance, never log plaintext ---

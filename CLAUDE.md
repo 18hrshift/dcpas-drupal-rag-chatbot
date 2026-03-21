@@ -1,7 +1,7 @@
 # CLAUDE.md — DCPAS RAG Chatbot Architecture Reference
 
 > This file documents architectural decisions, design rationale, and component
-> boundaries for this project. Updated every sprint. Last updated: Sprint 6.
+> boundaries for this project. Updated every sprint. Last updated: Sprint 7.
 
 ## Engineering North Star
 
@@ -223,6 +223,29 @@ re-throwing. This is intentional.
 - Color contrast ratios (`chatbot.css`) — admin should run through a contrast checker
 - Screen reader testing with NVDA/JAWS — recommended before production launch
 - Mobile/touch interaction — not formally audited
+
+---
+
+## Confidence Scoring & Evaluation (Sprint 7)
+
+### Low-confidence fallback
+When `Retriever::retrieve()` returns an empty array (no chunks met `min_score` threshold), `ChatController` triggers the fallback path:
+1. Returns the "couldn't find relevant information" message to the user.
+2. Logs a `warning` to `dcpas_chatbot` channel with `uid`, `ip`, and `q_hash` (SHA-256 hash of the question, no plaintext).
+
+**Why log low-confidence queries?** They reveal gaps in corpus coverage or questions that need different phrasing. Reviewing the hash list tells admins which query shapes fail without logging PII.
+
+**The min_score threshold** (default: 0.70) is configurable via the admin UI. Raising it reduces false-positive retrievals but increases low-confidence fallbacks. 0.70 was chosen empirically as a reasonable default for this domain.
+
+### Retrieval evaluation
+`ingestion/evaluate.py` measures retrieval accuracy against a fixture set:
+- Fixtures: `tests/eval/fixtures.json` — 22 Q&A pairs, each with a question and expected source URL prefixes.
+- A "hit" is when any retrieved chunk's `source_url` starts with any expected URL.
+- Reports: top-1 hit rate, top-3 hit rate, mean top score.
+- Thresholds: top-1 ≥ 70% = good; 50–70% = acceptable; < 50% = poor (review corpus coverage).
+- CI job `retrieval-eval` runs `--strict` mode when `CI_EVAL_ENABLED=true` and an index artifact is present.
+
+**Fixture design rationale:** Expected URLs are prefix-matched because a single page produces many chunks with different chunk_ids. Exact URL matching would be too fragile. The fixture set should grow as new pages are added to the corpus.
 
 ---
 

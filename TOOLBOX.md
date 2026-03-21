@@ -1,7 +1,7 @@
 # TOOLBOX.md — DCPAS RAG Chatbot Operations Reference
 
 > Command reference for developers and operators. Updated every sprint.
-> Last updated: Sprint 6.
+> Last updated: Sprint 7.
 
 ---
 
@@ -33,6 +33,21 @@ python3 store.py          # Write chunks + vectors to data/chatbot.db (SQLite)
 ### Verify retrieval
 ```bash
 python3 retrieve.py "What is DCPAS?" --top-k 5
+```
+
+### Evaluate retrieval quality (Sprint 7)
+```bash
+python3 ingestion/evaluate.py
+# Runs all fixtures in tests/eval/fixtures.json, reports top-1/top-3 hit rates.
+
+python3 ingestion/evaluate.py --verbose
+# Same, with per-fixture output (question, top result URL, scores).
+
+python3 ingestion/evaluate.py --strict
+# Exit 1 if top-1 hit rate < 50%.
+
+python3 ingestion/evaluate.py --fixtures tests/eval/fixtures.json --top-k 3
+# Custom fixtures path or top-k value.
 ```
 
 ### Dry run (simulate embed without writing)
@@ -113,6 +128,7 @@ make healthcheck   # drush dcpas:healthcheck
 make test          # Python test suite
 make lint          # phpcs + eslint
 make install-hooks # Install pre-commit secrets hook
+make eval          # Retrieval evaluation (requires populated index)
 ```
 
 ---

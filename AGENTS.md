@@ -1,7 +1,7 @@
 # AGENTS.md — Component Ownership & Boundaries
 
 > Defines which component owns which responsibility. Prevents duplication.
-> Updated every sprint. Last updated: Sprint 5.
+> Updated every sprint. Last updated: Sprint 7.
 
 ---
 
@@ -25,6 +25,7 @@ wrong. When adding code, find the right owner rather than duplicating.
 | `store.py` | SQLite read/write for chunks, embeddings, pages. Corpus hash. |
 | `corpus_guard.py` | Ingest-time injection scanner. Source of truth for injection patterns in the ingestion pipeline. |
 | `retrieve.py` | Load index, cosine similarity, return top-K. Dev/smoke-test tool only. |
+| `evaluate.py` | Retrieval evaluation. Loads fixtures, runs retrieve(), reports top-1/top-3 hit rates and mean score. |
 | `run_pipeline.py` | Orchestrator — calls the above. Manifest writing. --dry-run, --verify flags. |
 | `config.py` | Load config from `.env` / environment. No defaults that contain secrets. |
 
@@ -34,6 +35,7 @@ wrong. When adding code, find the right owner rather than duplicating.
 - SHA-256 chunk hashing (`store.py`)
 - Index manifest (`data/index-manifest.json`)
 - `--dry-run` and `--verify` workflows
+- Retrieval evaluation against fixture pairs (`evaluate.py`)
 
 **What ingestion pipeline does NOT own:**
 - Drupal request handling
@@ -97,6 +99,19 @@ poisoned corpus. If `--verify` reports mismatches, rebuild the index.
 
 ---
 
+## Evaluation Ownership
+
+`evaluate.py` owns all retrieval accuracy measurement:
+- Fixture pairs live in `tests/eval/fixtures.json` — add new Q&A pairs there.
+- `evaluate.py` loads fixtures, calls `retrieve.retrieve()`, computes hit rates.
+- **Do not add retrieval accuracy logic to `retrieve.py`.** `evaluate.py` owns it.
+- The fixture set is advisory truth — expected URLs are prefixes, not exact matches (a page produces multiple chunks).
+- CI runs `evaluate.py --strict` only when `CI_EVAL_ENABLED=true` and an index artifact is present.
+
+To extend the fixture set: add entries to `tests/eval/fixtures.json` following the existing schema (`id`, `question`, `expected_urls`, `notes`). Re-run `python3 ingestion/evaluate.py --verbose` to verify.
+
+---
+
 ## No-Duplication Rules
 
 1. **Do not put cosine similarity logic in `run_pipeline.py`.** `retrieve.py` owns it.
@@ -104,3 +119,4 @@ poisoned corpus. If `--verify` reports mismatches, rebuild the index.
 3. **Do not put prompt text in `ChatController`.** `PromptBuilder` owns it.
 4. **Do not put corpus scanning logic in `VectorStore.php`.** `corpus_guard.py` owns ingest scanning; `ChatController` owns query-time scanning.
 5. **Do not write the manifest from PHP.** Only `run_pipeline.py` writes it.
+6. **Do not put fixture evaluation logic in `retrieve.py`.** `evaluate.py` owns it.

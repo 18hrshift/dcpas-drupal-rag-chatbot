@@ -43,3 +43,26 @@ jobs:
         run: npm install -g eslint
       - name: Run eslint
         run: eslint drupal/dcpas_chatbot/js/chatbot.js
+
+  retrieval-eval:
+    name: Retrieval evaluation (optional)
+    runs-on: ubuntu-latest
+    # Only run when the index artifact is available (CI_EVAL_INDEX secret is set).
+    # In normal CI this job is skipped — it runs only when an indexed corpus
+    # has been uploaded as a workflow artifact or the secret is configured.
+    # Set CI_EVAL_ENABLED=true in repo secrets to activate this job.
+    if: ${{ vars.CI_EVAL_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download index artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dcpas-index
+          path: data/
+      - name: Run retrieval evaluation
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python3 ingestion/evaluate.py --verbose --strict

@@ -1,0 +1,134 @@
+[
+  {
+    "id": "dcpas-001",
+    "question": "What is DCPAS?",
+    "expected_urls": ["https://dcpas.osd.mil", "https://dcpas.osd.mil/about"],
+    "notes": "Should retrieve the about/mission page"
+  },
+  {
+    "id": "dcpas-002",
+    "question": "What is the mission of DCPAS?",
+    "expected_urls": ["https://dcpas.osd.mil/about", "https://dcpas.osd.mil"],
+    "notes": "Mission statement page"
+  },
+  {
+    "id": "dcpas-003",
+    "question": "What programs does DCPAS oversee?",
+    "expected_urls": ["https://dcpas.osd.mil/programs", "https://dcpas.osd.mil"],
+    "notes": "Programs overview"
+  },
+  {
+    "id": "dcpas-004",
+    "question": "How does the Defense Civilian Personnel Advisory Service support HR?",
+    "expected_urls": ["https://dcpas.osd.mil/about", "https://dcpas.osd.mil/programs"],
+    "notes": "HR support services"
+  },
+  {
+    "id": "dcpas-005",
+    "question": "What is the General Schedule pay system?",
+    "expected_urls": ["https://dcpas.osd.mil/pay", "https://dcpas.osd.mil/content/pay"],
+    "notes": "GS pay system information"
+  },
+  {
+    "id": "dcpas-006",
+    "question": "How is locality pay determined for federal employees?",
+    "expected_urls": ["https://dcpas.osd.mil/pay", "https://dcpas.osd.mil/content/pay/locality"],
+    "notes": "Locality pay guidance"
+  },
+  {
+    "id": "dcpas-007",
+    "question": "What is the National Security Personnel System?",
+    "expected_urls": ["https://dcpas.osd.mil", "https://dcpas.osd.mil/nsps"],
+    "notes": "NSPS history"
+  },
+  {
+    "id": "dcpas-008",
+    "question": "How do I apply for a federal job with the Department of Defense?",
+    "expected_urls": ["https://dcpas.osd.mil/recruitment", "https://dcpas.osd.mil/staffing"],
+    "notes": "Recruitment and hiring process"
+  },
+  {
+    "id": "dcpas-009",
+    "question": "What is the DoD Civilian Leave program?",
+    "expected_urls": ["https://dcpas.osd.mil/leave", "https://dcpas.osd.mil/benefits"],
+    "notes": "Civilian leave policies"
+  },
+  {
+    "id": "dcpas-010",
+    "question": "How does the performance management system work for DoD civilians?",
+    "expected_urls": ["https://dcpas.osd.mil/performance", "https://dcpas.osd.mil/labor"],
+    "notes": "Performance appraisal system"
+  },
+  {
+    "id": "dcpas-011",
+    "question": "What is the Defense Civilian Intelligence Personnel System?",
+    "expected_urls": ["https://dcpas.osd.mil/dcips", "https://dcpas.osd.mil"],
+    "notes": "DCIPS overview"
+  },
+  {
+    "id": "dcpas-012",
+    "question": "How are civilian reductions in force handled?",
+    "expected_urls": ["https://dcpas.osd.mil/rif", "https://dcpas.osd.mil/workforce"],
+    "notes": "RIF procedures"
+  },
+  {
+    "id": "dcpas-013",
+    "question": "What training does DCPAS offer to HR professionals?",
+    "expected_urls": ["https://dcpas.osd.mil/training", "https://dcpas.osd.mil/education"],
+    "notes": "HR training programs"
+  },
+  {
+    "id": "dcpas-014",
+    "question": "What is the DoD priority placement program?",
+    "expected_urls": ["https://dcpas.osd.mil/ppp", "https://dcpas.osd.mil/placement"],
+    "notes": "Priority placement program"
+  },
+  {
+    "id": "dcpas-015",
+    "question": "How are civilian awards and recognition handled in DoD?",
+    "expected_urls": ["https://dcpas.osd.mil/awards", "https://dcpas.osd.mil/pay"],
+    "notes": "Awards and incentives"
+  },
+  {
+    "id": "dcpas-016",
+    "question": "What is the Pathways Program for recent graduates?",
+    "expected_urls": ["https://dcpas.osd.mil/pathways", "https://dcpas.osd.mil/recruitment"],
+    "notes": "Pathways hiring program"
+  },
+  {
+    "id": "dcpas-017",
+    "question": "How does the DoD civilian drug testing program work?",
+    "expected_urls": ["https://dcpas.osd.mil/drug-testing", "https://dcpas.osd.mil"],
+    "notes": "Drug testing program"
+  },
+  {
+    "id": "dcpas-018",
+    "question": "What are the rules for federal employee political activity?",
+    "expected_urls": ["https://dcpas.osd.mil/hatch-act", "https://dcpas.osd.mil/ethics"],
+    "notes": "Hatch Act / political activity"
+  },
+  {
+    "id": "dcpas-019",
+    "question": "What is the purpose of the civilian human resources strategic plan?",
+    "expected_urls": ["https://dcpas.osd.mil/strategic-plan", "https://dcpas.osd.mil/about"],
+    "notes": "HR strategic planning"
+  },
+  {
+    "id": "dcpas-020",
+    "question": "How do DoD civilian employees appeal adverse actions?",
+    "expected_urls": ["https://dcpas.osd.mil/appeals", "https://dcpas.osd.mil/labor"],
+    "notes": "Appeals and grievances"
+  },
+  {
+    "id": "dcpas-021",
+    "question": "What is the Federal Employees Retirement System?",
+    "expected_urls": ["https://dcpas.osd.mil/retirement", "https://dcpas.osd.mil/benefits"],
+    "notes": "FERS retirement"
+  },
+  {
+    "id": "dcpas-022",
+    "question": "How does the Defense Acquisition Workforce Improvement Act affect HR?",
+    "expected_urls": ["https://dcpas.osd.mil/dawia", "https://dcpas.osd.mil/workforce"],
+    "notes": "DAWIA workforce requirements"
+  }
+]
