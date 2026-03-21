@@ -1,7 +1,7 @@
 # TOOLBOX.md — DCPAS RAG Chatbot Operations Reference
 
 > Command reference for developers and operators. Updated every sprint.
-> Last updated: Sprint 7.
+> Last updated: Sprint 8.
 
 ---
 
@@ -129,7 +129,27 @@ make test          # Python test suite
 make lint          # phpcs + eslint
 make install-hooks # Install pre-commit secrets hook
 make eval          # Retrieval evaluation (requires populated index)
+make migrate-pg    # Migrate SQLite index to pgvector (requires PG_DSN)
 ```
+
+---
+
+## pgvector Migration (Sprint 8)
+
+```bash
+# Dry run — check row counts without writing
+python3 ingestion/migrate_to_pgvector.py --dry-run
+
+# Run migration (requires PG_DSN env var)
+export PG_DSN="postgresql://user:pass@localhost:5432/drupal_db"
+python3 ingestion/migrate_to_pgvector.py
+
+# After migration: switch backend in Drupal admin settings
+# Then verify:
+drush dcpas:healthcheck
+```
+
+See `DEPLOY.md § pgvector Setup` for the full guide.
 
 ---
 

@@ -1,7 +1,7 @@
 # AGENTS.md — Component Ownership & Boundaries
 
 > Defines which component owns which responsibility. Prevents duplication.
-> Updated every sprint. Last updated: Sprint 7.
+> Updated every sprint. Last updated: Sprint 8.
 
 ---
 
@@ -26,6 +26,7 @@ wrong. When adding code, find the right owner rather than duplicating.
 | `corpus_guard.py` | Ingest-time injection scanner. Source of truth for injection patterns in the ingestion pipeline. |
 | `retrieve.py` | Load index, cosine similarity, return top-K. Dev/smoke-test tool only. |
 | `evaluate.py` | Retrieval evaluation. Loads fixtures, runs retrieve(), reports top-1/top-3 hit rates and mean score. |
+| `migrate_to_pgvector.py` | One-time migration: reads SQLite index, upserts into PostgreSQL + pgvector. |
 | `run_pipeline.py` | Orchestrator — calls the above. Manifest writing. --dry-run, --verify flags. |
 | `config.py` | Load config from `.env` / environment. No defaults that contain secrets. |
 
@@ -49,8 +50,13 @@ wrong. When adding code, find the right owner rather than duplicating.
 | Service / Class | Owns |
 |-----------------|------|
 | `ChatController` | Request validation pipeline (content-type, JSON decode, auth, CSRF, flood, input normalisation, injection guard, retrieval, audit log). Orchestrates — no business logic inline. |
-| `Retriever` | Loads VectorStore, computes cosine similarity, returns top-K. |
-| `VectorStore` | MySQL/DB reads for chunks and embeddings. Memory-safe batch loading. Manifest reading. Schema awareness. |
+| `Retriever` | Embeds query, calls VectorStoreInterface::findSimilar(), returns top-K chunks. |
+| `VectorStoreInterface` | Contract for all vector backends. `findSimilar()`, `getStats()`, `getManifest()`, `getLatestIndexVersion()`. |
+| `VectorStoreLocator` | Routes calls to SqliteVectorStore or PgVectorStore based on `vector_store_backend` config. Registered as `dcpas_chatbot.vector_store`. |
+| `SqliteVectorStore` | SQLite backend. Batch-loads corpus into PHP memory, computes cosine in-process. Memory safety guard. |
+| `PgVectorStore` | pgvector backend. Issues a single pgvector `<=>` ANN query per request. No corpus loading into PHP. |
+| `AbstractVectorStore` | Base class with shared `getStats()`, `getManifest()`, `getLatestIndexVersion()`, `parseMemoryLimit()`. |
+| `VectorStore` | Deprecated BC alias for SqliteVectorStore. Remove in next major version. |
 | `PromptBuilder` | System prompt, user message assembly, citation extraction. |
 | `AzureOpenAIClient` | HTTP call to Azure OpenAI chat completions. Timeout handling. |
 | `SettingsForm` | Admin config UI. Reads manifest via VectorStore. No business logic. |
@@ -59,13 +65,16 @@ wrong. When adding code, find the right owner rather than duplicating.
 **What Drupal module owns:**
 - All PHP-side request handling and retrieval
 - PHP-side injection filter (`PROMPT_INJECTION_PATTERNS` in `ChatController`)
-- Memory-safe corpus loading (`VectorStore`)
+- Memory-safe corpus loading (`SqliteVectorStore`)
+- pgvector ANN query (`PgVectorStore`)
+- Backend routing based on config (`VectorStoreLocator`)
 - Admin UI manifest display (reads `index-manifest.json`, does not write it)
 
 **What Drupal module does NOT own:**
 - Writing chunk hashes or the manifest (ingestion pipeline owns this)
 - Running the crawler or embedder
 - Ingest-time injection scanning (corpus_guard.py owns this)
+- Migrating data between backends (migrate_to_pgvector.py owns this)
 
 ---
 
@@ -120,3 +129,6 @@ To extend the fixture set: add entries to `tests/eval/fixtures.json` following t
 4. **Do not put corpus scanning logic in `VectorStore.php`.** `corpus_guard.py` owns ingest scanning; `ChatController` owns query-time scanning.
 5. **Do not write the manifest from PHP.** Only `run_pipeline.py` writes it.
 6. **Do not put fixture evaluation logic in `retrieve.py`.** `evaluate.py` owns it.
+7. **Do not put database migration logic in `store.py` or `run_pipeline.py`.** `migrate_to_pgvector.py` owns it.
+8. **Do not put similarity computation in `Retriever.php`.** The vector store backend owns it (SqliteVectorStore or PgVectorStore).
+9. **Do not type-hint against `VectorStore`, `SqliteVectorStore`, or `PgVectorStore` in consumers.** Always type-hint against `VectorStoreInterface`.

@@ -6,12 +6,32 @@ services:
       - '@config.factory'
       - '@http_client'
 
-  dcpas_chatbot.vector_store:
-    class: Drupal\dcpas_chatbot\Service\VectorStore
+  # SQLite backend — in-process cosine similarity (default).
+  dcpas_chatbot.sqlite_vector_store:
+    class: Drupal\dcpas_chatbot\Service\SqliteVectorStore
     arguments:
       - '@database'
       - '@config.factory'
       - '@logger.channel.dcpas_chatbot'
+
+  # pgvector backend — PostgreSQL ANN search (production scale).
+  # Requires: PostgreSQL default DB, pgvector extension, migration run.
+  # See DEPLOY.md § pgvector Setup.
+  dcpas_chatbot.pg_vector_store:
+    class: Drupal\dcpas_chatbot\Service\PgVectorStore
+    arguments:
+      - '@database'
+      - '@config.factory'
+      - '@logger.channel.dcpas_chatbot'
+
+  # Active vector store — routes to sqlite or pgvector based on config.
+  # All consumers (Retriever, SettingsForm, DcpasChatbotCommands) use this.
+  dcpas_chatbot.vector_store:
+    class: Drupal\dcpas_chatbot\Service\VectorStoreLocator
+    arguments:
+      - '@dcpas_chatbot.sqlite_vector_store'
+      - '@dcpas_chatbot.pg_vector_store'
+      - '@config.factory'
 
   dcpas_chatbot.retriever:
     class: Drupal\dcpas_chatbot\Service\Retriever

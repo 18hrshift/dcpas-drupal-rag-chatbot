@@ -14,6 +14,10 @@
  * Implements hook_schema().
  */
 function dcpas_chatbot_schema(): array {
+  // Note: dcpas_chatbot_pg_embeddings is NOT listed here because it requires
+  // the pgvector PostgreSQL extension and a vector column type unsupported by
+  // Drupal's schema API. It is created by hook_update_9801() on PostgreSQL
+  // installs only, and populated by ingestion/migrate_to_pgvector.py.
   return [
     'dcpas_chatbot_chunks' => [
       'description' => 'RAG document chunks extracted from the indexed corpus.',
@@ -64,6 +68,44 @@ function dcpas_chatbot_schema(): array {
  */
 function dcpas_chatbot_uninstall(): void {
   \Drupal::configFactory()->getEditable('dcpas_chatbot.settings')->delete();
+}
+
+/**
+ * Create the pgvector embeddings table on PostgreSQL installs (Sprint 8).
+ *
+ * This update hook runs on ALL installs but only creates the table when the
+ * default database driver is pgsql. On MySQL/SQLite it is a no-op.
+ *
+ * Prerequisites (PostgreSQL only):
+ *   1. CREATE EXTENSION IF NOT EXISTS vector;
+ *   2. Run ingestion/migrate_to_pgvector.py to populate the table.
+ *   3. Switch vector_store_backend to 'pgvector' in admin settings.
+ *
+ * The vector dimension (1536) matches text-embedding-3-small.
+ * Adjust if using a different embedding model.
+ */
+function dcpas_chatbot_update_9801(): void {
+  $db = \Drupal::database();
+  if ($db->databaseType() !== 'pgsql') {
+    // Not PostgreSQL — pgvector table not applicable.
+    return;
+  }
+  // Raw DDL required — Drupal schema API does not support vector column type.
+  $db->query("
+    CREATE TABLE IF NOT EXISTS {dcpas_chatbot_pg_embeddings} (
+      chunk_id   VARCHAR(64)      NOT NULL PRIMARY KEY,
+      model      VARCHAR(100)     DEFAULT '',
+      dimensions INTEGER          DEFAULT 0,
+      embedding  vector(1536)     NOT NULL,
+      embedded_at VARCHAR(32)     DEFAULT ''
+    )
+  ");
+  $db->query("
+    CREATE INDEX IF NOT EXISTS dcpas_pg_emb_ivfflat
+    ON {dcpas_chatbot_pg_embeddings}
+    USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100)
+  ");
 }
 
 /**

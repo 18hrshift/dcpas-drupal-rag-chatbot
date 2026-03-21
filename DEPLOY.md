@@ -205,12 +205,78 @@ Go to Admin → Config → DCPAS Chatbot Settings and uncheck **Enable chatbot**
 
 ---
 
+## pgvector Setup (Sprint 8)
+
+Switch to the pgvector backend when the corpus exceeds 50 000 chunks or
+in-process cosine similarity is too slow for your query latency requirements.
+
+### Requirements
+
+- PostgreSQL 15+ as the Drupal default database
+- [pgvector extension](https://github.com/pgvector/pgvector) installed
+- Python packages: `pip install psycopg2-binary pgvector numpy`
+
+### Steps
+
+**1. Enable pgvector in PostgreSQL**
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+**2. Run the Drupal update hook** (creates the `dcpas_chatbot_pg_embeddings` table)
+```bash
+drush updb
+```
+
+**3. Set the PostgreSQL connection string**
+```bash
+export PG_DSN="postgresql://drupal_user:password@localhost:5432/drupal_db"
+```
+
+**4. Migrate the SQLite index to pgvector**
+```bash
+# Dry run first — check row counts without writing
+python3 ingestion/migrate_to_pgvector.py --dry-run
+
+# Run the migration
+python3 ingestion/migrate_to_pgvector.py
+```
+
+**5. Switch the backend in Drupal admin**
+
+Go to *Admin → Config → DCPAS Chatbot Settings → Retrieval Settings* and set
+**Vector store backend** → `pgvector`. Save.
+
+**6. Verify**
+```bash
+drush dcpas:healthcheck
+```
+
+### Latency benchmarks (reference, empty until load-tested)
+
+| Corpus size | SQLite (PHP cosine) | pgvector (IVFFlat) |
+|-------------|---------------------|--------------------|
+| 10 000 chunks | — ms | — ms |
+| 50 000 chunks | — ms | — ms |
+| 100 000 chunks | N/A (memory limit) | — ms |
+
+*Run your own benchmarks and update this table. See `PERFORMANCE.md`.*
+
+### Switching back to SQLite
+
+Set **Vector store backend** → `sqlite` in admin settings. No data is lost —
+both tables remain populated.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
 | "Chatbot is currently unavailable" | Not enabled or API key missing | Check admin settings; set `DCPAS_OPENAI_API_KEY` |
 | Empty answers / no citations | Index not populated | Run `make ingest` |
-| Slow responses (>5s) | Too many chunks loaded | Lower `max_chunks` in admin settings |
+| Slow responses (>5s) | Too many chunks loaded | Lower `max_chunks` (SQLite) or check pgvector index |
 | 403 errors in logs | CSRF token expired | Normal after long idle; user should reload page |
 | Hash mismatches in `--verify` | Possible corruption | Rebuild index: `make ingest` |
+| pgvector: "relation does not exist" | Migration not run | Run `drush updb` then `migrate_to_pgvector.py` |
+| pgvector: "extension not found" | pgvector not installed | `CREATE EXTENSION IF NOT EXISTS vector;` in psql |
