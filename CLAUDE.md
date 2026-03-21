@@ -1,7 +1,7 @@
 # CLAUDE.md — DCPAS RAG Chatbot Architecture Reference
 
 > This file documents architectural decisions, design rationale, and component
-> boundaries for this project. Updated every sprint. Last updated: Sprint 4.
+> boundaries for this project. Updated every sprint. Last updated: Sprint 5.
 
 ## Engineering North Star
 
@@ -102,12 +102,57 @@ See SECURITY.md § Audit Log Schema for the full field list.
 
 ---
 
+## Corpus Trust Model (Sprint 5)
+
+The corpus goes through four validation layers, each owned by a different component:
+
+| Layer | Owner | What it checks |
+|-------|-------|---------------|
+| Ingest scan | `corpus_guard.py` | Injection patterns in chunk text — same list as `ChatController`. Skip+log poisoned chunks. |
+| Ingest hash | `store.py` | SHA-256 of chunk text stored in `chunks.text_hash` at write time. |
+| Index manifest | `run_pipeline.py` | After each run: total chunks, skipped chunks, corpus fingerprint. Written to `data/index-manifest.json`. |
+| Load validation | `VectorStore.php` | URL scheme check, NaN/INF vector check, finite numeric check on every loaded row. |
+
+See AGENTS.md for ownership boundaries — corpus integrity is an ingestion concern, not a Drupal module concern.
+
+### Corpus hash
+`store.py::corpus_hash()` computes SHA-256 over all chunk_ids sorted lexicographically. Stable across re-runs if the chunk set is unchanged. Shown in the admin UI manifest section and written to the manifest JSON.
+
+### Verify workflow
+```bash
+python3 ingestion/run_pipeline.py --verify
+```
+Recomputes SHA-256 for every chunk's text and compares to stored `text_hash`. Reports mismatches (possible tampering) and displays the manifest.
+
+---
+
+## Memory Safety (Sprint 5)
+
+### Why batched loading?
+`VectorStore::loadAllWithEmbeddings()` loads the full corpus into PHP memory for in-process cosine similarity. On large corpora this can exhaust PHP's memory_limit. The batch loader prevents runaway allocation.
+
+### How it works
+- Loads in batches of `LOAD_BATCH_SIZE` (1 000 rows).
+- Before each batch, checks `memory_get_usage(TRUE)` against `MEMORY_CEILING_FRACTION` (80 %) of PHP's `memory_limit`.
+- If the ceiling is approached, logs a `warning` to `dcpas_chatbot` channel and stops loading — returning a partial corpus with a logged warning. Retrieval continues on the loaded subset.
+- The configurable `max_chunks` setting is the normal operational cap (default 10 000).
+- `ABSOLUTE_ROW_CAP` (50 000) is a hard ceiling regardless of config.
+
+### Threshold
+`MEMORY_CEILING_FRACTION = 0.80` — stops at 80 % of `memory_limit`. This leaves headroom for the rest of the request cycle (similarity computation, prompt building, Azure call). Document this if raising the threshold.
+
+### When to migrate
+If `max_chunks = 10 000` is insufficient for retrieval quality at your corpus size, increase it up to 50 000 and monitor memory usage. If 50 000 chunks approach the memory ceiling, it is time to migrate to pgvector (Sprint 8) rather than raise PHP's memory_limit.
+
+---
+
 ## Citation Trust Chain
 
 1. **Ingest time (Python):** `store.py` validates source URLs before writing to SQLite.
-2. **Load time (PHP):** `VectorStore::loadAllWithEmbeddings()` validates URL scheme (`http`/`https`) before returning chunks. Rejects `javascript:`, `data:`, etc.
-3. **Vector validation (PHP):** All vector elements checked for `is_float`/`is_int` AND `is_infinite`/`is_nan` to prevent cosine similarity arithmetic errors.
-4. **Render time (JS):** `chatbot.js` checks `cite.url.startsWith('https://')` before setting `a.href`. Defence-in-depth against any URL that passed server-side checks.
+2. **Ingest scan (Python):** `corpus_guard.py` rejects chunks containing injection patterns.
+3. **Load time (PHP):** `VectorStore::loadAllWithEmbeddings()` validates URL scheme (`http`/`https`) before returning chunks. Rejects `javascript:`, `data:`, etc.
+4. **Vector validation (PHP):** All vector elements checked for `is_float`/`is_int` AND `is_infinite`/`is_nan` to prevent cosine similarity arithmetic errors.
+5. **Render time (JS):** `chatbot.js` checks `cite.url.startsWith('https://')` before setting `a.href`. Defence-in-depth against any URL that passed server-side checks.
 
 ---
 
@@ -126,6 +171,8 @@ All runtime config lives in Drupal config `dcpas_chatbot.settings`:
 | `top_k` | 5 | Chunks retrieved per query |
 | `rate_limit_window` | 60 | Flood window (seconds) |
 | `rate_limit_max` | 10 | Max requests per window |
+| `max_chunks` | 10000 | Max corpus chunks loaded into PHP memory |
+| `manifest_path` | — | Filesystem path to `index-manifest.json` for admin display |
 
 **Never commit real credentials.** Use environment variables or Drupal's
 `settings.php` secret injection. See Sprint 6 for full secrets management plan.

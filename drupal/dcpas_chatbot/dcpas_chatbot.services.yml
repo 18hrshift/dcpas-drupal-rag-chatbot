@@ -10,6 +10,8 @@ services:
     class: Drupal\dcpas_chatbot\Service\VectorStore
     arguments:
       - '@database'
+      - '@config.factory'
+      - '@logger.channel.dcpas_chatbot'
 
   dcpas_chatbot.retriever:
     class: Drupal\dcpas_chatbot\Service\Retriever

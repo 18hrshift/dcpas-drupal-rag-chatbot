@@ -114,26 +114,23 @@ Examples:
 **Goal:** Make the retrieval pipeline trustworthy — poison-resistant ingestion, stable chunking, and memory-safe query path.
 
 ### Corpus Integrity
-- [ ] **Corpus hash check:** At index write time, compute SHA-256 of each chunk's text and store in `dcpas_chatbot_chunks`
-- [ ] **Ingest-time keyword scan:** Before storing a chunk, scan for prompt-injection patterns (same list as `ChatController`). Log and skip poisoned chunks rather than silently indexing.
-- [ ] **Index manifest:** At the end of each ingest run, write a manifest file (`data/index-manifest.json`) with: run timestamp, total chunks, skipped chunks, hash of full chunk list
-- [ ] **Admin UI manifest display:** Show active index version + timestamp in the Drupal admin settings form
+- [x] **Corpus hash check:** SHA-256 of chunk text stored in `chunks.text_hash` at write time (`store.py`)
+- [x] **Ingest-time keyword scan:** `corpus_guard.py` — same patterns as `ChatController`. Skip+log poisoned chunks before writing.
+- [x] **Index manifest:** `data/index-manifest.json` written after each ingest: run_at, total_chunks, embedded_chunks, skipped_poisoned, corpus_hash
+- [x] **Admin UI manifest display:** `SettingsForm.php` reads manifest via `VectorStore::getManifest()`, shows run_at, totals, corpus hash, poisoned count
 
 ### Memory Safety
-- [ ] Add PHP memory ceiling guard in `VectorStore::loadAllWithEmbeddings()`:
-  - Check `memory_get_usage()` before loading next batch
-  - Return partial result with a logged warning if ceiling approached
-  - Document the threshold in `CLAUDE.md`
-- [ ] Add configurable `MAX_CHUNKS` setting to the admin form (default: 10,000 for prod, 50,000 for dev)
+- [x] PHP memory ceiling guard in `VectorStore::loadAllWithEmbeddings()` — batch loading (1 000 rows/batch), `memory_get_usage()` check before each batch, warning log if ceiling approached, partial return
+- [x] Configurable `max_chunks` admin setting (default 10 000, hard cap 50 000). `manifest_path` config added for admin UI.
 
 ### Ingestion Pipeline
-- [ ] Add `--dry-run` flag to `run_pipeline.py` — runs all steps, skips write, reports what would be indexed
-- [ ] Add `--verify` flag — loads existing index, runs chunk hash check, reports integrity status
+- [x] `--dry-run` flag: runs extract/chunk/scan steps, skips all writes, reports what would be indexed
+- [x] `--verify` flag: loads index, re-derives hashes, reports mismatches and displays manifest
 
 ### Docs
-- [ ] Update `TOOLBOX.md` — manifest check, dry-run, verify commands
-- [ ] Update `AGENTS.md` — corpus integrity owner: ingestion pipeline, not Drupal module
-- [ ] Update `CLAUDE.md` — corpus trust model, memory ceiling rationale
+- [x] Update `TOOLBOX.md` — manifest check, dry-run, verify commands
+- [x] Create `AGENTS.md` — component ownership, corpus integrity boundary
+- [x] Update `CLAUDE.md` — corpus trust model, memory ceiling rationale
 
 **North Star checks:**
 - Modularity? Corpus hash logic lives in ingestion pipeline, not Drupal. Admin display reads manifest only.
