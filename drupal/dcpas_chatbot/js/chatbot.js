@@ -98,9 +98,14 @@
 
         const ul = document.createElement('ul');
         citations.forEach((cite) => {
+          // Client-side guard: only allow https:// URLs even though the server
+          // validates scheme at index time. Defence-in-depth against any
+          // javascript: or data: URI that might slip through.
+          if (!cite.url || !cite.url.startsWith('https://')) return;
+
           const li = document.createElement('li');
           const a  = document.createElement('a');
-          a.href   = cite.url;    // URL from server — validated server-side
+          a.href   = cite.url;
           a.target = '_blank';
           a.rel    = 'noopener noreferrer';
           a.textContent = cite.title; // textContent, not innerHTML
@@ -120,7 +125,12 @@
       const el = document.createElement('div');
       el.className = 'dcpas-chatbot__message dcpas-chatbot__message--loading';
       el.setAttribute('aria-label', 'Thinking…');
-      el.innerHTML = '<span class="dcpas-chatbot__dot"></span><span class="dcpas-chatbot__dot"></span><span class="dcpas-chatbot__dot"></span>';
+      // Build dots with createElement — never innerHTML — to avoid XSS vectors.
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'dcpas-chatbot__dot';
+        el.appendChild(dot);
+      }
       messages.appendChild(el);
       scrollToBottom(messages);
       return el;

@@ -46,10 +46,14 @@ class VectorStore {
       if (!is_array($vector) || empty($vector)) {
         continue;
       }
-      // Validate that all vector elements are numeric to prevent PHP
-      // arithmetic errors in cosineSimilarity().
+      // Validate that all vector elements are finite numerics to prevent PHP
+      // arithmetic errors in cosineSimilarity(). Explicitly reject INF and NaN
+      // values that pass is_float() but corrupt cosine similarity calculations.
       foreach ($vector as $v) {
         if (!is_float($v) && !is_int($v)) {
+          continue 2;
+        }
+        if (is_infinite($v) || is_nan($v)) {
           continue 2;
         }
       }
