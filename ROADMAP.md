@@ -185,23 +185,23 @@ Examples:
 **Goal:** Give admins and developers tools to measure and improve retrieval quality over time.
 
 ### Evaluation Framework
-- [ ] Build `tests/eval/` — small fixture set of 20+ known Q&A pairs mapped to expected source URLs
-- [ ] Add `ingestion/evaluate.py` — runs eval fixtures against live index, reports:
+- [x] Build `tests/eval/` — 22 Q&A fixture pairs mapped to expected source URL prefixes
+- [x] Add `ingestion/evaluate.py` — runs eval fixtures against live index, reports:
   - Top-1 hit rate (was the right source in the top chunk?)
   - Top-3 hit rate
-  - Average cosine similarity for correct retrievals
-- [ ] Add eval step to CI — runs against index snapshot, fails if top-1 drops below threshold
-- [ ] Document eval methodology in `AGENTS.md`
+  - Mean top cosine similarity score
+- [x] Add optional eval step to CI (`retrieval-eval` job, runs when `CI_EVAL_ENABLED=true`)
+- [x] Document eval methodology in `AGENTS.md`
 
 ### Confidence Scoring
-- [ ] Add minimum similarity threshold config (default: 0.70) to admin settings
-- [ ] If best chunk score < threshold: return "I don't have enough information to answer that confidently" fallback
-- [ ] Log low-confidence queries (hash only, no question text) for admin review
+- [x] Minimum similarity threshold (0.70) already implemented in Retriever.php
+- [x] Fallback message already implemented in ChatController
+- [x] Log low-confidence queries (hash only, no question text) — added warning log in ChatController when empty($chunks)
 
 ### Docs
-- [ ] Update `TOOLBOX.md` — eval commands, interpreting results
-- [ ] Update `AGENTS.md` — eval ownership, how to extend fixture set
-- [ ] Update `CLAUDE.md` — confidence scoring design, fallback behavior rationale
+- [x] Update `TOOLBOX.md` — eval commands, interpreting results, `make eval`
+- [x] Update `AGENTS.md` — eval ownership, how to extend fixture set
+- [x] Update `CLAUDE.md` — confidence scoring design, fallback behavior rationale
 
 ---
 

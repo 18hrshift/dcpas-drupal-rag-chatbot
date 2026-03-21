@@ -4,6 +4,22 @@ All notable changes to the DCPAS RAG Chatbot are documented here.
 
 ---
 
+## [v0.7.0] — Sprint 7: Evaluation & Confidence Scoring
+
+### Added
+- `tests/eval/fixtures.json` — 22 Q&A fixture pairs with expected source URL prefixes for retrieval evaluation.
+- `ingestion/evaluate.py` — loads fixtures, runs retrieval, reports top-1/top-3 hit rates and mean top score. `--verbose`, `--strict`, `--top-k`, `--fixtures` flags.
+- `Makefile` `eval` target — runs `evaluate.py --verbose` against the live index.
+- CI job `retrieval-eval` in `.github/workflows/ci.yml` — optional; activates only when `CI_EVAL_ENABLED=true` repo variable is set and an `dcpas-index` artifact is present.
+
+### Changed
+- `ChatController.php`: added `logger->warning()` on the low-confidence path (when `empty($chunks)`) — logs `uid`, `ip`, `q_hash` only. No question text (PII compliance).
+- `AGENTS.md`: added `evaluate.py` to ingestion pipeline component map; added Evaluation Ownership section and rule 6.
+- `CLAUDE.md`: added Confidence Scoring & Evaluation section with design rationale.
+- `TOOLBOX.md`: added eval commands and `make eval` to Makefile targets table.
+
+---
+
 ## [v0.6.0] — Sprint 6: Production Deployment Path
 
 ### Added

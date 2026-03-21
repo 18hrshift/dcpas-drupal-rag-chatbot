@@ -7,7 +7,7 @@ DRUSH    ?= $(DRUPAL)/vendor/bin/drush
 PHPCS    ?= phpcs
 ESLINT   ?= eslint
 
-.PHONY: help ingest verify healthcheck test lint install-hooks
+.PHONY: help ingest verify healthcheck test lint install-hooks eval
 
 help:
 	@echo ""
@@ -22,6 +22,7 @@ help:
 	@echo "  make test          Run Python test suite"
 	@echo "  make lint          Run PHP code style + JS lint checks"
 	@echo "  make install-hooks Install git pre-commit secrets-leak hook"
+	@echo "  make eval          Run retrieval evaluation (requires populated index)"
 	@echo ""
 
 ingest:
@@ -57,3 +58,6 @@ install-hooks:
 	cp hooks/pre-commit .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 	@echo "Done. Hook will scan staged files for API key patterns before each commit."
+
+eval:
+	$(PYTHON) ingestion/evaluate.py --verbose
