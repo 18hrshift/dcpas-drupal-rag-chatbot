@@ -43,6 +43,13 @@
       }
     });
 
+    // --- Escape key: return focus to input and clear any error state ---
+    widget.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        input.focus();
+      }
+    });
+
     // --- Form submit ---
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -55,6 +62,8 @@
       charCount.textContent = '';
 
       const loadingEl = appendLoading();
+      // aria-busy signals to screen readers that a response is in progress.
+      form.setAttribute('aria-busy', 'true');
       setFormEnabled(false, form);
 
       try {
@@ -70,6 +79,7 @@
         loadingEl.remove();
         appendMessage('error', 'A network error occurred. Please try again.');
       } finally {
+        form.removeAttribute('aria-busy');
         setFormEnabled(true, form);
         input.focus();
         scrollToBottom(messages);
@@ -85,6 +95,11 @@
       const p = document.createElement('p');
       // Use textContent — NEVER innerHTML — to prevent XSS
       p.textContent = text;
+      // lang="en" on assistant responses satisfies WCAG 3.1.2 (Language of Parts).
+      // User input is not tagged as a known language.
+      if (role === 'assistant') {
+        p.setAttribute('lang', 'en');
+      }
       el.appendChild(p);
 
       if (citations && citations.length > 0) {

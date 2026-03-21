@@ -4,6 +4,26 @@ All notable changes to the DCPAS RAG Chatbot are documented here.
 
 ---
 
+## [v0.6.0] — Sprint 6: Production Deployment Path
+
+### Added
+- `DEPLOY.md` — 10-step deployment guide: module install, API key setup, ingest pipeline, health check, smoke test, block placement, troubleshooting table.
+- `drush dcpas:healthcheck` (`DcpasChatbotCommands.php`) — checks enabled state, API key, API base URL, index population, manifest file, and live API connectivity. Exit code 1 on failure.
+- `Makefile` — targets: `ingest`, `embed`, `dry-run`, `verify`, `stats`, `healthcheck`, `test`, `lint`, `install-hooks`.
+- `hooks/pre-commit` — secrets-leak scanner; blocks commits containing OpenAI API keys, API key assignments, or `.env` files. Install via `make install-hooks`.
+- `drupal/dcpas_chatbot/config/README.md` — secrets management guide: env var, settings.php injection, Azure Key Vault path, config export warnings.
+- `PERFORMANCE.md` — O(n×d) retrieval analysis, acceptable thresholds, pgvector migration triggers, log query examples, baseline table.
+
+### Changed
+- `ChatController.php`: performance timing on every request — `total_ms`, `retrieve_ms`, `azure_ms` logged to `dcpas_chatbot` channel at `info` level.
+- `chatbot.js`: `aria-busy="true"` on form while awaiting response; Escape key returns focus to input; `lang="en"` attribute on assistant response paragraphs (WCAG 3.1.2).
+- `templates/dcpas-chatbot-block.html.twig`: added `lang="en"` to widget container (WCAG 3.1.1).
+- `dcpas_chatbot.services.yml`: registered `DcpasChatbotCommands` as a drush command service.
+- `CLAUDE.md`: production secrets model, WCAG compliance table, performance logging design.
+- `TOOLBOX.md`: Makefile targets, drush healthcheck, pre-commit hook, performance log format.
+
+---
+
 ## [v0.5.0] — Sprint 5: Corpus Integrity & Memory Safety
 
 ### Added

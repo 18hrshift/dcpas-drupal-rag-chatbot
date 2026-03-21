@@ -24,3 +24,11 @@ services:
     class: Drupal\dcpas_chatbot\Service\PromptBuilder
     arguments:
       - '@config.factory'
+
+  dcpas_chatbot.commands:
+    class: Drupal\dcpas_chatbot\Commands\DcpasChatbotCommands
+    arguments:
+      - '@config.factory'
+      - '@dcpas_chatbot.vector_store'
+    tags:
+      - { name: drush.command }
