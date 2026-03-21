@@ -40,14 +40,29 @@ class ChatController extends ControllerBase {
   const MAX_QUESTION_LENGTH = 500;
 
   /**
-   * Structural markers that must be stripped from user input to prevent
-   * prompt injection attacks that corrupt the RAG prompt template.
+   * Structural markers and known injection phrases that must be stripped from
+   * user input to prevent prompt injection attacks corrupting the RAG template.
+   *
+   * Note: this is a best-effort defence-in-depth control. It reduces the
+   * attack surface but cannot guarantee injection-free input. The server-side
+   * system prompt is the authoritative trust boundary; this filter is a
+   * supplementary layer. See CLAUDE.md § Prompt Injection Design.
    */
   const PROMPT_INJECTION_PATTERNS = [
+    // Structural markers that mirror the RAG prompt template
     '/\[Source\s+\d+\]/i',
     '/^---+$/m',
     '/^Question:/m',
     '/^Use the following context/m',
+    // Role / persona hijack phrases
+    '/^System:/im',
+    '/^Assistant:/im',
+    '/^Override:/im',
+    '/^Final answer:/im',
+    '/<EndOfContext>/i',
+    '/\bdisregard\b/i',
+    '/ignore all\b/i',
+    // Original catch-all
     '/ignore (all )?(previous|prior) instructions?/i',
   ];
 
@@ -102,12 +117,20 @@ class ChatController extends ControllerBase {
 
     // --- Permission check ---
     if (!$this->currentUser->hasPermission('access dcpas chatbot')) {
+      $this->logger->warning('Chat 403: insufficient permission. uid=@uid ip=@ip', [
+        '@uid' => $this->currentUser->id(),
+        '@ip'  => $request->getClientIp(),
+      ]);
       return $this->errorResponse('Access denied.', 403);
     }
 
     // --- CSRF validation ---
     $token = $body['token'] ?? '';
     if (empty($token) || !$this->csrfTokenGenerator->validate($token, 'dcpas_chatbot_chat')) {
+      $this->logger->warning('Chat 403: invalid CSRF token. uid=@uid ip=@ip', [
+        '@uid' => $this->currentUser->id(),
+        '@ip'  => $request->getClientIp(),
+      ]);
       return $this->errorResponse('Invalid request token.', 403);
     }
 
@@ -117,12 +140,24 @@ class ChatController extends ControllerBase {
     $clientIp   = $request->getClientIp();
 
     if (!$this->flood->isAllowed('dcpas_chatbot.chat', $rateMax, $rateWindow, $clientIp)) {
+      $this->logger->warning('Chat 429: rate limit exceeded. uid=@uid ip=@ip', [
+        '@uid' => $this->currentUser->id(),
+        '@ip'  => $clientIp,
+      ]);
       return $this->errorResponse('Too many requests. Please wait a moment.', 429);
     }
     $this->flood->register('dcpas_chatbot.chat', $rateWindow, $clientIp);
 
     // --- Input normalisation: strip tags first, then enforce length ---
-    $question = strip_tags(trim($body['question'] ?? ''));
+    // Normalize Unicode homoglyphs (e.g. Cyrillic 'а' → Latin 'a') before
+    // pattern matching so injection phrases using lookalike characters are
+    // caught by the blocklist. Requires PHP intl extension (iconv fallback
+    // used if unavailable, which strips non-ASCII entirely).
+    $rawQuestion = strip_tags(trim($body['question'] ?? ''));
+    if (function_exists('normalizer_normalize')) {
+      $rawQuestion = normalizer_normalize($rawQuestion, \Normalizer::FORM_KC) ?: $rawQuestion;
+    }
+    $question = $rawQuestion;
     if (empty($question)) {
       return $this->errorResponse('Please enter a question.', 400);
     }
@@ -148,8 +183,12 @@ class ChatController extends ControllerBase {
       $citations = $this->promptBuilder->extractCitations($chunks);
     }
     catch (\RuntimeException $e) {
-      // Log the real error internally; never expose it to the client.
+      // Log error internally; never expose internal details to the client.
       $this->logger->error('Chat request failed: @msg', ['@msg' => $e->getMessage()]);
+      $this->logger->warning('Chat API error: uid=@uid ip=@ip', [
+        '@uid' => $this->currentUser->id(),
+        '@ip'  => $clientIp,
+      ]);
       return $this->errorResponse('An error occurred. Please try again.', 500);
     }
 

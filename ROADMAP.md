@@ -62,9 +62,11 @@ Examples:
 | Drupal module | Complete — ChatController, block, settings, services |
 | MVP polish | Complete — citations, rate limiting, audit logging |
 | Security hardening | Complete — CSRF, permissions, XSS, SQL injection all addressed |
-| Security review findings | **5 open items** — see Sprint 4 |
-| Production deployment path | **Not started** |
-| CI / automated tests | Partial — 47 tests in `tests/`, no CI pipeline |
+| Security review findings | **Closed** — all 5 Sprint 4 fixes shipped |
+| Git workflow / CI | Complete — develop branch, CI workflow, PR template, CONTRIBUTING |
+| Docs baseline | Complete — SECURITY.md, CLAUDE.md, TOOLBOX.md created Sprint 4 |
+| Production deployment path | **Not started** — Sprint 6 |
+| CI / automated tests | 47 tests in `tests/`, CI pipeline in `.github/workflows/ci.yml` |
 
 ---
 
@@ -75,29 +77,29 @@ Examples:
 
 ### Security Fixes (from review)
 
-- [ ] **[fix/prompt-injection-hardening]** Expand prompt injection blocklist in `ChatController.php`:
+- [x] **[fix/prompt-injection-hardening]** Expand prompt injection blocklist in `ChatController.php`:
   - Add: `System:`, `Assistant:`, `Override:`, `Final answer:`, `<EndOfContext>`, `Disregard`, `Ignore all`
   - Add Unicode homoglyph normalization before pattern matching
   - Document in `CLAUDE.md` that this is a best-effort control, not a guarantee
-- [ ] **[fix/nan-inf-vector-validation]** Add `is_infinite()` / `is_nan()` check in `VectorStore.php` vector loading
-- [ ] **[fix/innerHTML-spinner]** Replace `innerHTML` spinner with `document.createElement` loop in `chatbot.js`
-- [ ] **[fix/citation-href-validation]** Add client-side `startsWith('https://')` guard on citation URLs in `chatbot.js`
-- [ ] **[fix/audit-logging]** Add `$this->logger->warning()` calls on 403, 429, and API error paths in `ChatController.php`
+- [x] **[fix/nan-inf-vector-validation]** Add `is_infinite()` / `is_nan()` check in `VectorStore.php` vector loading
+- [x] **[fix/innerHTML-spinner]** Replace `innerHTML` spinner with `document.createElement` loop in `chatbot.js`
+- [x] **[fix/citation-href-validation]** Add client-side `startsWith('https://')` guard on citation URLs in `chatbot.js`
+- [x] **[fix/audit-logging]** Add `$this->logger->warning()` calls on 403, 429, and API error paths in `ChatController.php`
 
 ### Git & CI Foundation
-- [ ] Initialize `develop` branch from current `main`
-- [ ] Add `CONTRIBUTING.md` — branch model, commit format, PR checklist
-- [ ] Add GitHub Actions (or Gitea/local CI) workflow:
+- [x] Initialize `develop` branch from current `main`
+- [x] Add `CONTRIBUTING.md` — branch model, commit format, PR checklist
+- [x] Add GitHub Actions (or Gitea/local CI) workflow:
   - PHP: `phpcs` with Drupal coding standards
   - Python: `python3 -m pytest tests/`
   - Lint: `eslint js/chatbot.js`
-- [ ] Add `.github/PULL_REQUEST_TEMPLATE.md` — What / Why / Security impact fields
-- [ ] Tag current `main` as `v0.3.0` (post-Sprint 3 baseline)
+- [x] Add `.github/PULL_REQUEST_TEMPLATE.md` — What / Why / Security impact fields
+- [x] Tag current `main` as `v0.3.0` (post-Sprint 3 baseline)
 
 ### Docs
-- [ ] Create `SECURITY.md` — threat model, known limitations, responsible disclosure note
-- [ ] Update `CLAUDE.md` — prompt injection design assumptions, audit log schema
-- [ ] Update `TOOLBOX.md` — git workflow section, CI commands
+- [x] Create `SECURITY.md` — threat model, known limitations, responsible disclosure note
+- [x] Update `CLAUDE.md` — prompt injection design assumptions, audit log schema
+- [x] Update `TOOLBOX.md` — git workflow section, CI commands
 
 **North Star checks:**
 - Modularity? Each fix is a single-responsibility diff. No coupling changes.
