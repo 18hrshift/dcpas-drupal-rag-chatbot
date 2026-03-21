@@ -18,5 +18,6 @@ rate_limit_window: 60
 rate_limit_max: 10
 chatbot_title: 'DCPAS Assistant'
 placeholder_text: 'Ask a question about DCPAS policies and programs...'
+vector_store_backend: sqlite
 max_chunks: 10000
 manifest_path: ''

@@ -213,12 +213,18 @@ Examples:
 > This sprint is explicitly scope-gated: only implement if deployment target has PostgreSQL available.
 > SQLite path remains supported and tested.
 
-- [ ] Add `VectorStoreInterface` — both `SqliteVectorStore` and `PgVectorStore` implement it
-- [ ] Implement `PgVectorStore` using Drupal's Database API + pgvector extension
-- [ ] Add migration script `ingestion/migrate_to_pgvector.py`
-- [ ] Update admin settings: vector store backend selector (sqlite / pgvector)
-- [ ] Update `DEPLOY.md` with pgvector setup section
-- [ ] Benchmarks: compare query latency at 10K, 50K, 100K chunks
+- [x] Add `VectorStoreInterface` — contract for all vector store backends
+- [x] Add `AbstractVectorStore` — shared DB/manifest/stats methods
+- [x] Implement `SqliteVectorStore` — in-process cosine similarity (renamed from VectorStore); cosine logic moves from Retriever into this class
+- [x] Implement `PgVectorStore` — pgvector `<=>` ANN query; no corpus loading into PHP
+- [x] Add `VectorStoreLocator` — routes to SQLite or pgvector based on `vector_store_backend` config; registered as `dcpas_chatbot.vector_store`
+- [x] Update `Retriever.php` — type-hints `VectorStoreInterface`, calls `findSimilar()`, cosine loop removed
+- [x] Update `SettingsForm.php`, `DcpasChatbotCommands.php` — type-hint `VectorStoreInterface`
+- [x] Keep `VectorStore.php` as deprecated BC alias for SqliteVectorStore
+- [x] Add migration script `ingestion/migrate_to_pgvector.py` — reads SQLite, upserts to pgvector, builds IVFFlat index
+- [x] Update admin settings: vector store backend selector (sqlite / pgvector)
+- [x] Update `DEPLOY.md` with pgvector setup section
+- [ ] Benchmarks: populate the latency table in DEPLOY.md (requires a live pgvector deployment)
 
 ---
 
@@ -231,7 +237,7 @@ Examples:
 | `v0.5.0` | Sprint 5 | Corpus integrity + memory safety |
 | `v0.6.0` | Sprint 6 | Production deployment path + WCAG |
 | `v0.7.0` | Sprint 7 | Evaluation + confidence scoring |
-| `v1.0.0` | Sprint 8 | pgvector + production-validated release |
+| `v1.0.0` | Sprint 8 (done) | pgvector migration path + VectorStoreInterface |
 
 ---
 

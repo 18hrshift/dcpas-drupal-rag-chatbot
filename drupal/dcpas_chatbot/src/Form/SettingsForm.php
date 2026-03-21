@@ -5,7 +5,7 @@ namespace Drupal\dcpas_chatbot\Form;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\dcpas_chatbot\Service\VectorStore;
+use Drupal\dcpas_chatbot\Service\VectorStoreInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -24,7 +24,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class SettingsForm extends ConfigFormBase {
 
-  protected VectorStore $vectorStore;
+  protected VectorStoreInterface $vectorStore;
 
   public function __construct(ConfigFactoryInterface $configFactory) {
     parent::__construct($configFactory);
@@ -183,6 +183,20 @@ class SettingsForm extends ConfigFormBase {
       '#type'  => 'details',
       '#title' => $this->t('Retrieval Settings'),
     ];
+    $form['retrieval']['vector_store_backend'] = [
+      '#type'          => 'select',
+      '#title'         => $this->t('Vector store backend'),
+      '#options'       => [
+        'sqlite'   => $this->t('SQLite — in-process cosine similarity (default, no external DB required)'),
+        'pgvector' => $this->t('pgvector — PostgreSQL ANN search (production scale, requires setup)'),
+      ],
+      '#default_value' => $config->get('vector_store_backend') ?? 'sqlite',
+      '#description'   => $this->t(
+        'SQLite loads the corpus into PHP memory and computes cosine similarity in-process. '
+        . 'Switch to pgvector when the corpus exceeds 50 000 chunks or query latency is unacceptable. '
+        . 'See <code>DEPLOY.md § pgvector Setup</code> and run <code>python3 ingestion/migrate_to_pgvector.py</code> before switching.'
+      ),
+    ];
     $form['retrieval']['top_k'] = [
       '#type'          => 'number',
       '#title'         => $this->t('Top-K chunks'),
@@ -209,10 +223,11 @@ class SettingsForm extends ConfigFormBase {
     ];
     $form['retrieval']['max_chunks'] = [
       '#type'          => 'number',
-      '#title'         => $this->t('Max corpus chunks to load'),
+      '#title'         => $this->t('Max corpus chunks to load (SQLite backend only)'),
       '#description'   => $this->t(
-        'Maximum chunks loaded into PHP memory for cosine similarity search. '
-        . 'Lower values reduce memory usage. Recommended: 10 000 for production, 50 000 for dev. '
+        'Maximum chunks loaded into PHP memory for in-process cosine similarity search. '
+        . 'Only applies to the SQLite backend. Lower values reduce memory usage. '
+        . 'Recommended: 10 000 for production, 50 000 for dev. '
         . 'Hard ceiling is 50 000 regardless of this value. See CLAUDE.md § Memory Safety.'
       ),
       '#default_value' => $config->get('max_chunks') ?? 10000,
@@ -311,6 +326,7 @@ class SettingsForm extends ConfigFormBase {
       ->set('top_k', (int) $form_state->getValue('top_k'))
       ->set('min_score', (float) $form_state->getValue('min_score'))
       ->set('max_response_tokens', (int) $form_state->getValue('max_response_tokens'))
+      ->set('vector_store_backend', $form_state->getValue('vector_store_backend'))
       ->set('max_chunks', (int) $form_state->getValue('max_chunks'))
       ->set('manifest_path', trim($form_state->getValue('manifest_path')))
       ->set('api_timeout', (int) $form_state->getValue('api_timeout'))

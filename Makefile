@@ -7,7 +7,7 @@ DRUSH    ?= $(DRUPAL)/vendor/bin/drush
 PHPCS    ?= phpcs
 ESLINT   ?= eslint
 
-.PHONY: help ingest verify healthcheck test lint install-hooks eval
+.PHONY: help ingest verify healthcheck test lint install-hooks eval migrate-pg
 
 help:
 	@echo ""
@@ -23,6 +23,7 @@ help:
 	@echo "  make lint          Run PHP code style + JS lint checks"
 	@echo "  make install-hooks Install git pre-commit secrets-leak hook"
 	@echo "  make eval          Run retrieval evaluation (requires populated index)"
+	@echo "  make migrate-pg    Migrate SQLite index to pgvector (requires PG_DSN)"
 	@echo ""
 
 ingest:
@@ -61,3 +62,6 @@ install-hooks:
 
 eval:
 	$(PYTHON) ingestion/evaluate.py --verbose
+
+migrate-pg:
+	$(PYTHON) ingestion/migrate_to_pgvector.py

@@ -1,7 +1,7 @@
 # CLAUDE.md — DCPAS RAG Chatbot Architecture Reference
 
 > This file documents architectural decisions, design rationale, and component
-> boundaries for this project. Updated every sprint. Last updated: Sprint 7.
+> boundaries for this project. Updated every sprint. Last updated: Sprint 8.
 
 ## Engineering North Star
 
@@ -223,6 +223,32 @@ re-throwing. This is intentional.
 - Color contrast ratios (`chatbot.css`) — admin should run through a contrast checker
 - Screen reader testing with NVDA/JAWS — recommended before production launch
 - Mobile/touch interaction — not formally audited
+
+---
+
+## Vector Store Backends (Sprint 8)
+
+### Architecture
+All vector store access goes through `VectorStoreInterface`. The active service (`dcpas_chatbot.vector_store`) is `VectorStoreLocator`, which reads `vector_store_backend` config and delegates to either `SqliteVectorStore` or `PgVectorStore` on every call.
+
+| Backend | Class | How similarity works | When to use |
+|---------|-------|---------------------|-------------|
+| `sqlite` (default) | `SqliteVectorStore` | Load corpus into PHP memory, compute cosine similarity in-process | Up to ~50K chunks; default for all deployments |
+| `pgvector` | `PgVectorStore` | Single `<=>` ANN query in PostgreSQL | 50K+ chunks; or when in-process memory is constrained |
+
+### Switching backends
+Change `vector_store_backend` in admin settings (or via config). The switch takes effect immediately — no cache flush or service rebuild required. `VectorStoreLocator` reads config on every call.
+
+### Cosine similarity: where it lives
+- **SQLite path:** `SqliteVectorStore::cosineSimilarity()` — pure PHP, same algorithm as before Sprint 8.
+- **pgvector path:** `e.embedding <=> vec::vector` — the `<=>` operator computes cosine distance in PostgreSQL. Score = `1 - distance`.
+- `Retriever.php` no longer owns similarity computation — it just calls `findSimilar()`.
+
+### pgvector table
+`dcpas_chatbot_pg_embeddings` — created by `hook_update_9801()` on PostgreSQL installs. Not in `hook_schema()` because Drupal's schema API does not support `vector(N)` column types. The IVFFlat index uses `lists = sqrt(corpus_size)` (min 10, max 1000).
+
+### Migration
+`ingestion/migrate_to_pgvector.py` reads `data/index.sqlite` and upserts into PostgreSQL. Idempotent — safe to re-run after adding new chunks. Requires `psycopg2-binary` and `pgvector` Python packages (not stdlib). See `DEPLOY.md § pgvector Setup`.
 
 ---
 

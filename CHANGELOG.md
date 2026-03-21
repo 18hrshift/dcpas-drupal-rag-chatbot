@@ -4,6 +4,31 @@ All notable changes to the DCPAS RAG Chatbot are documented here.
 
 ---
 
+## [v1.0.0] — Sprint 8: pgvector Migration Path
+
+### Added
+- `VectorStoreInterface` — contract for all vector store backends (`findSimilar`, `getStats`, `getManifest`, `getLatestIndexVersion`).
+- `AbstractVectorStore` — base class with shared DB/manifest/stats logic used by both backends.
+- `SqliteVectorStore` — in-process cosine similarity backend; supersedes `VectorStore`. Contains `loadAllWithEmbeddings()`, `cosineSimilarity()`, and all memory safety constants.
+- `PgVectorStore` — PostgreSQL + pgvector backend. Issues a single `<=>` ANN query per request; no corpus loading into PHP memory.
+- `VectorStoreLocator` — routes to the configured backend based on `vector_store_backend` config. Registered as `dcpas_chatbot.vector_store`.
+- `ingestion/migrate_to_pgvector.py` — reads SQLite index, upserts chunks + embeddings into pgvector, builds IVFFlat index. Idempotent. `--dry-run` flag supported.
+- `hook_update_9801` in `dcpas_chatbot.install` — creates `dcpas_chatbot_pg_embeddings` table (PostgreSQL only) with IVFFlat index.
+- Admin settings: **Vector store backend** selector (sqlite / pgvector).
+- `DEPLOY.md § pgvector Setup` — prerequisites, step-by-step migration, troubleshooting.
+- Makefile `migrate-pg` target.
+
+### Changed
+- `Retriever.php`: removed `cosineSimilarity()` method and in-process scoring loop. Now calls `$this->vectorStore->findSimilar($queryVector, $k, $minScore)`. Type-hint changed from `VectorStore` to `VectorStoreInterface`.
+- `SettingsForm.php`, `DcpasChatbotCommands.php`: type-hints updated to `VectorStoreInterface`.
+- `services.yml`: `dcpas_chatbot.vector_store` now points to `VectorStoreLocator`; added `dcpas_chatbot.sqlite_vector_store` and `dcpas_chatbot.pg_vector_store`.
+- `VectorStore.php`: converted to a deprecated BC alias extending `SqliteVectorStore`.
+- Config schema: added `vector_store_backend` key.
+- Install defaults: `vector_store_backend: sqlite`.
+- AGENTS.md, CLAUDE.md, TOOLBOX.md, ROADMAP.md: updated for Sprint 8.
+
+---
+
 ## [v0.7.0] — Sprint 7: Evaluation & Confidence Scoring
 
 ### Added

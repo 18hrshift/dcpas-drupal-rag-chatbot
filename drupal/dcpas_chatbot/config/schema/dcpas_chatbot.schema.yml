@@ -50,9 +50,12 @@ dcpas_chatbot.settings:
     placeholder_text:
       type: string
       label: 'Input placeholder text'
+    vector_store_backend:
+      type: string
+      label: 'Vector store backend (sqlite or pgvector)'
     max_chunks:
       type: integer
-      label: 'Max corpus chunks loaded into PHP memory (memory safety cap)'
+      label: 'Max corpus chunks loaded into PHP memory (memory safety cap, SQLite only)'
     manifest_path:
       type: string
       label: 'Filesystem path to index-manifest.json (ingestion pipeline output)'

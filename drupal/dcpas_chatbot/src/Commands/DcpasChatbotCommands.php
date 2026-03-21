@@ -3,7 +3,7 @@
 namespace Drupal\dcpas_chatbot\Commands;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\dcpas_chatbot\Service\VectorStore;
+use Drupal\dcpas_chatbot\Service\VectorStoreInterface;
 use Drush\Commands\DrushCommands;
 
 /**
@@ -16,7 +16,7 @@ class DcpasChatbotCommands extends DrushCommands {
 
   public function __construct(
     protected readonly ConfigFactoryInterface $configFactory,
-    protected readonly VectorStore $vectorStore,
+    protected readonly VectorStoreInterface $vectorStore,
   ) {
     parent::__construct();
   }
