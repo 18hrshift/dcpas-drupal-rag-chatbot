@@ -1,4 +1,14 @@
 """
+DEPRECATED: ingestion/export_mysql.py
+
+This script is a legacy migration tool from before pgvector was adopted as the
+production vector store. It is no longer part of the standard deployment path.
+
+For production migrations, use ingestion/migrate_to_pgvector.py instead.
+See PERFORMANCE.md for when and how to migrate to pgvector.
+
+---
+
 ingestion/export_mysql.py — Export the SQLite index to a MySQL-compatible SQL dump.
 
 Reads data/index.sqlite and writes SQL INSERT statements for the three Drupal
