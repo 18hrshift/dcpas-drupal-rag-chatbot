@@ -1,5 +1,9 @@
 services:
 
+  logger.channel.dcpas_chatbot:
+    parent: logger.channel_base
+    arguments: ['dcpas_chatbot']
+
   dcpas_chatbot.azure_client:
     class: Drupal\dcpas_chatbot\Service\AzureOpenAIClient
     arguments:
