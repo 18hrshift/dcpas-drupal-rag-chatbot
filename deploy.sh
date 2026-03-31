@@ -48,10 +48,10 @@ echo "==> Deploying module to $TARGET"
 rsync -a --delete "$MODULE_SRC/" "$TARGET/"
 
 # ── Fix permissions ───────────────────────────────────────────────────────────
-# Apache cannot read files owned by the deploying user. Reset ownership to
-# apache:apache so httpd can serve the module files.
-echo "==> Fixing permissions (chown apache: $MODULE_DIR)"
-chown -R apache: "$MODULE_DIR"
+# Apache cannot read files owned by the deploying user. Only chown the
+# dcpas_chatbot directory — touching all of contrib breaks other modules.
+echo "==> Fixing permissions (chown apache: $TARGET)"
+chown -R apache: "$TARGET"
 
 # ── Cache clear ───────────────────────────────────────────────────────────────
 echo "==> Running drush cr"
