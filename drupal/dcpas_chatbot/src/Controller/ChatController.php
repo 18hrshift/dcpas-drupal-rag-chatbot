@@ -74,9 +74,10 @@ class ChatController extends ControllerBase {
     ConfigFactoryInterface $configFactory,
     protected readonly CsrfTokenGenerator $csrfTokenGenerator,
     protected readonly LoggerInterface $logger,
-    protected readonly AccountInterface $currentUser,
+    AccountInterface $currentUser,
   ) {
     $this->configFactory = $configFactory;
+    $this->currentUser = $currentUser;
   }
 
   /**
