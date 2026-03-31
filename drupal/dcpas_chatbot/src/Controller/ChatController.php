@@ -71,11 +71,13 @@ class ChatController extends ControllerBase {
     protected readonly AzureOpenAIClient $openAIClient,
     protected readonly PromptBuilder $promptBuilder,
     protected readonly FloodInterface $flood,
-    protected readonly ConfigFactoryInterface $configFactory,
+    ConfigFactoryInterface $configFactory,
     protected readonly CsrfTokenGenerator $csrfTokenGenerator,
     protected readonly LoggerInterface $logger,
     protected readonly AccountInterface $currentUser,
-  ) {}
+  ) {
+    $this->configFactory = $configFactory;
+  }
 
   /**
    * {@inheritdoc}
