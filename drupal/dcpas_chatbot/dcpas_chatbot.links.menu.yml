@@ -1,0 +1,6 @@
+dcpas_chatbot.settings:
+  title: 'DCPAS Chatbot'
+  description: 'Configure the DCPAS RAG chatbot, API keys, and rate limits.'
+  route_name: dcpas_chatbot.settings
+  parent: system.admin_config_services
+  weight: 10
