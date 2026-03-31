@@ -1,45 +1,55 @@
 #!/usr/bin/env bash
-# deploy.sh — Sync dcpas_chatbot to the local Drupal install and clear cache
+# deploy.sh — Pull dcpas_chatbot from GitHub and deploy to the local Drupal install
 #
-# Usage:
-#   ./deploy.sh                     # deploy with defaults
-#   ./deploy.sh /custom/module/dir  # override target module dir
-#
-# Requires sudo for writes into /var/www/html
+# Usage (run on the Drupal server):
+#   sudo ./deploy.sh               # deploy from default branch (develop)
+#   sudo ./deploy.sh main          # deploy a different branch
 
 set -euo pipefail
 
 # ── Config ───────────────────────────────────────────────────────────────────
-MODULE_DIR="${1:-/var/www/html/dcpas-dev/web/modules/contrib}"
+BRANCH="${1:-develop}"
+REPO="18hrshift/dcpas-drupal-rag-chatbot"
+ZIP_URL="https://github.com/${REPO}/archive/refs/heads/${BRANCH}.zip"
+
+MODULE_DIR="/var/www/html/dcpas-dev/web/modules/contrib"
 DRUPAL_ROOT="/var/www/html/dcpas-dev"
-LOCAL_MODULE="$(cd "$(dirname "$0")/drupal/dcpas_chatbot" && pwd)"
 TARGET="$MODULE_DIR/dcpas_chatbot"
 
-# ── Sanity check ─────────────────────────────────────────────────────────────
-if [[ ! -d "$LOCAL_MODULE" ]]; then
-  echo "ERROR: module not found at $LOCAL_MODULE" >&2
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+# ── Download ──────────────────────────────────────────────────────────────────
+echo "==> Downloading $ZIP_URL"
+wget -q --show-progress -O "$WORK_DIR/repo.zip" "$ZIP_URL"
+
+# ── Extract ───────────────────────────────────────────────────────────────────
+echo "==> Extracting"
+unzip -q "$WORK_DIR/repo.zip" -d "$WORK_DIR"
+
+# GitHub zip extracts to <repo>-<branch>/
+EXTRACTED="$WORK_DIR/$(ls "$WORK_DIR" | grep -v repo.zip | head -1)"
+MODULE_SRC="$EXTRACTED/drupal/dcpas_chatbot"
+
+if [[ ! -d "$MODULE_SRC" ]]; then
+  echo "ERROR: dcpas_chatbot not found in extracted archive at $MODULE_SRC" >&2
   exit 1
 fi
 
-if [[ ! -d "$MODULE_DIR" ]]; then
-  echo "ERROR: target directory not found: $MODULE_DIR" >&2
-  exit 1
-fi
-
-# ── Backup ───────────────────────────────────────────────────────────────────
+# ── Backup ────────────────────────────────────────────────────────────────────
 if [[ -d "$TARGET" ]]; then
   echo "==> Backing up existing module → ${TARGET}.bak"
-  sudo rm -rf "${TARGET}.bak"
-  sudo cp -a "$TARGET" "${TARGET}.bak"
+  rm -rf "${TARGET}.bak"
+  cp -a "$TARGET" "${TARGET}.bak"
 fi
 
-# ── Sync ─────────────────────────────────────────────────────────────────────
-echo "==> Syncing $LOCAL_MODULE → $TARGET"
-sudo rsync -a --delete "$LOCAL_MODULE/" "$TARGET/"
+# ── Deploy ────────────────────────────────────────────────────────────────────
+echo "==> Deploying module to $TARGET"
+rsync -a --delete "$MODULE_SRC/" "$TARGET/"
 
-# ── Cache clear ──────────────────────────────────────────────────────────────
+# ── Cache clear ───────────────────────────────────────────────────────────────
 echo "==> Running drush cr"
 cd "$DRUPAL_ROOT"
-sudo ./vendor/bin/drush cr
+./vendor/bin/drush cr
 
-echo "==> Done."
+echo "==> Done. Deployed branch: $BRANCH"
