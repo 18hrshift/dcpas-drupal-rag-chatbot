@@ -194,6 +194,105 @@ def _write_manifest(vs: VectorStore, manifest_path: Path, skipped_poisoned: int)
     print(f"\nManifest written → {manifest_path}")
 
 
+def run_from_files(config: dict, files_dir: str, dry_run: bool = False) -> None:
+    """Ingest a directory of local documents without crawling.
+
+    Accepts .txt, .md, and .pdf files. Use this for demo/offline ingestion
+    when you want to skip the crawler and feed curated documents directly.
+
+    Source URLs are set to file://demo/<filename> so citations are readable.
+
+    Args:
+        config:    pipeline config dict
+        files_dir: path to a directory containing .txt / .md / .pdf files
+        dry_run:   if True, all steps run but nothing is written to the store
+    """
+    source_dir = Path(files_dir)
+    if not source_dir.is_dir():
+        print(f"Error: --from-files path is not a directory: {files_dir}")
+        sys.exit(1)
+
+    accepted_suffixes = {".txt", ".md", ".pdf"}
+    doc_files = [f for f in sorted(source_dir.iterdir()) if f.suffix.lower() in accepted_suffixes]
+
+    if not doc_files:
+        print(f"No .txt / .md / .pdf files found in {files_dir}")
+        return
+
+    if dry_run:
+        print("\n[DRY RUN] No writes will be made to the store or manifest.\n")
+
+    print(f"\n=== File Ingest: {len(doc_files)} documents from {files_dir} ===")
+
+    vs = VectorStore(config["db_path"])
+    all_new_chunks: list[dict] = []
+    total_skipped_poisoned = 0
+    manifest_path = Path(config["db_path"]).parent / "index-manifest.json"
+
+    for i, doc_file in enumerate(doc_files):
+        suffix = doc_file.suffix.lower()
+        url = f"file://demo/{doc_file.name}"
+        title = doc_file.stem.replace("-", " ").replace("_", " ").title()
+
+        try:
+            if suffix == ".pdf":
+                text = extract_pdf_text(str(doc_file))
+            else:
+                text = doc_file.read_text(encoding="utf-8", errors="replace")
+
+            if not text.strip():
+                print(f"  [{i+1}/{len(doc_files)}] Empty — skipping: {doc_file.name}")
+                continue
+
+            chunks = chunk_document(url, title, text)
+            if not chunks:
+                continue
+
+            clean: list[dict] = []
+            skipped = 0
+            for c in chunks:
+                if is_poisoned(c["text"]):
+                    pattern = first_match(c["text"])
+                    print(f"  [SKIP-POISONED] {c['chunk_id'][:16]}… matched: {pattern}")
+                    skipped += 1
+                else:
+                    clean.append(c)
+            total_skipped_poisoned += skipped
+
+            new_chunks = [c for c in clean if not vs.chunk_exists(c["chunk_id"])]
+            if new_chunks and not dry_run:
+                vs.upsert_page(url, title)
+                vs.upsert_chunks(new_chunks)
+                all_new_chunks.extend(new_chunks)
+            elif new_chunks:
+                all_new_chunks.extend(new_chunks)
+
+            label = "[DRY RUN] would add" if dry_run else "new chunks"
+            print(f"  [{i+1}/{len(doc_files)}] {suffix[1:].upper()}: {len(new_chunks)} {label} — {title}")
+
+        except Exception as e:
+            print(f"  [{i+1}/{len(doc_files)}] Error ({doc_file.name}): {e}")
+
+    print(f"\n{len(all_new_chunks)} new chunks {'(dry run — not written)' if dry_run else 'to embed'}")
+    if total_skipped_poisoned:
+        print(f"WARNING: {total_skipped_poisoned} chunks skipped (injection pattern matched)")
+
+    if all_new_chunks and not dry_run:
+        to_embed = [c for c in all_new_chunks if not vs.embedding_exists(c["chunk_id"])]
+        if to_embed:
+            print(f"Embedding {len(to_embed)} chunks...")
+            embed_chunks(to_embed, config)
+            vs.upsert_embeddings(to_embed, config["embedding_model"])
+
+    stats = vs.stats()
+    print(f"\nStore: {stats['pages']} pages, {stats['chunks']} chunks, {stats['embedded']} embedded")
+
+    if not dry_run:
+        _write_manifest(vs, manifest_path, total_skipped_poisoned)
+
+    vs.close()
+
+
 def run_query(query: str, config: dict, top_k: int = 5) -> None:
     """Smoke-test retrieval: run a query and print top results."""
     print(f"\n=== Query: {query!r} ===")
@@ -265,27 +364,30 @@ def main():
     parser = argparse.ArgumentParser(description="DCPAS RAG ingestion pipeline")
     parser.add_argument("--crawl", action="store_true", help="Run the crawler")
     parser.add_argument("--embed", action="store_true", help="Extract, chunk, and embed documents")
-    parser.add_argument("--dry-run", action="store_true", help="Simulate --embed: run all steps but skip writes")
+    parser.add_argument("--from-files", metavar="DIR", help="Ingest .txt/.md/.pdf files from DIR (no crawl needed)")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate --embed or --from-files: run all steps but skip writes")
     parser.add_argument("--verify", action="store_true", help="Check corpus hash integrity and display manifest")
     parser.add_argument("--query", metavar="TEXT", help="Test retrieval with a query")
     parser.add_argument("--stats", action="store_true", help="Print store statistics")
     parser.add_argument("--top-k", type=int, default=5, help="Number of results for --query")
     args = parser.parse_args()
 
-    if not any([args.crawl, args.embed, args.dry_run, args.verify, args.query, args.stats]):
+    if not any([args.crawl, args.embed, args.from_files, args.dry_run, args.verify, args.query, args.stats]):
         parser.print_help()
         sys.exit(0)
 
     config = load_config()
 
-    if not config["openai_api_key"] and (args.embed or args.query):
+    if not config["openai_api_key"] and (args.embed or args.from_files or args.query):
         print("Error: OPENAI_API_KEY not set. Copy .env.example to .env and fill in your key.")
         sys.exit(1)
 
     if args.crawl:
         run_crawl(config)
 
-    if args.embed or args.dry_run:
+    if args.from_files:
+        run_from_files(config, args.from_files, dry_run=args.dry_run)
+    elif args.embed or args.dry_run:
         run_extract_and_embed(config, dry_run=args.dry_run)
 
     if args.verify:
