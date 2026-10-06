@@ -44,7 +44,7 @@ The Drupal app database user has `'readonly' => TRUE` in settings.php. That user
 ## Step 1 — Run the Ingestion Pipeline (on the OpenClaw VM)
 
 ```bash
-cd /home/openclawjb/projects/drupal-rag-chatbot
+cd /home/openclawjb/Desktop/Projects/drupal-rag-chatbot
 
 # Configure API key
 cp .env.example .env
@@ -69,7 +69,7 @@ python3 ingestion/run_pipeline.py --verify
 No table prefix needed (confirmed empty).
 
 ```bash
-cd /home/openclawjb/projects/drupal-rag-chatbot
+cd /home/openclawjb/Desktop/Projects/drupal-rag-chatbot
 python3 ingestion/export_mysql.py --out data/export.sql
 ```
 
